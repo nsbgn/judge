@@ -1,0 +1,87 @@
+logic: justification
+system: tableau
+name: J₀
+description: |
+    This was an attempt at restricting J0-naive.md to be more computationally 
+    tractable, but it won't work: we assume that at least one of the premises 
+    of the ·-rule is already on the branch, but that needn't be the case.
+rules:
+    "F→":
+        if:
+            - "[F] A → B"
+        then: 
+            - ["[T] A", "[F] B"]
+    "T→":
+        if:
+            - "[T] A -> B"
+        then:
+            - ["[F] A"]
+            - ["[T] B"]
+    Te:
+        if:
+            - "[T] T:A"
+        then:
+            - ["[T, e] T:A"]
+    Fe:
+        if:
+            - "[F] T:A"
+        then:
+            - ["[F, e] T:A"]
+    "(+)":
+        if:
+            - "[F, e] T+S:A"
+        then: # This rule is not correct
+            - ["[F, e] T:A"]
+            - ["[F, e] S:A"]
+    "(·)":
+        if:
+            - "[T, e] S:(A → B)"
+            - "[T, e] T:A"
+        then:
+            - ["[T, e] (S * T) : B"]
+        where:
+            and:
+                - occurs: "A → B"
+                  with: subterms
+                  in:
+                      union:
+                          - root
+                          - assumptions
+                - occurs: "S * T"
+                  with: subterms
+                  in: root
+    PBe:
+        if: []
+        then:
+            - ["[T, e] T:A"]
+            - ["[F, e] T:A"]
+        where:
+            and:
+                - bind: "A"
+                  with: [subterms, formulas]
+                  in: 
+                      union: [root, assumptions]
+                - bind: "T"
+                  with: [subterms, justifications]
+                  in: root
+                - occurs: "[T, e] X : (A → Y)"
+                  with: all
+                  in: unprocessed
+    PBf:
+        if: []
+        then:
+            - ["[T, e] T:(A -> B)"]
+            - ["[F, e] T:(A -> B)"]
+        where:
+            and:
+                - bind: "A -> B"
+                  with: [subterms, formulas]
+                  in:
+                      union: [root, assumptions]
+                - bind: "T"
+                  with: [subterms, justifications]
+                  in: root
+                - occurs: "[T, e] X : A"
+                  with: all
+                  in: unprocessed
+assumptions: []

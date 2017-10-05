@@ -1,0 +1,5 @@
+.cabal-sandbox/
+.stack-work/
+dist/
+literature/
+build/

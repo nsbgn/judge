@@ -1,0 +1,73 @@
+logic: justification
+system: tableau
+name: J₀
+description: |
+    This system stays relatively faithful to the one described in Ghari 2016, but it is computationally not quite feasible.
+rules:
+    "F→":
+        if:
+            - "[F] A → B"
+        then: 
+            - ["[T] A", "[F] B"]
+    "T→":
+        if:
+            - "[T] A -> B"
+        then:
+            - ["[F] A"]
+            - ["[T] B"]
+    Te:
+        if:
+            - "[T] T:A"
+        then:
+            - ["[T, e] T:A"]
+    Fe:
+        if:
+            - "[F] T:A"
+        then:
+            - ["[F, e] T:A"]
+    "F+":
+        if:
+            - "[F, e] T+S:A"
+        then:
+            - ["[F, e] T:A"]
+            - ["[F, e] S:A"]
+    "T·":
+        if:
+            - "[T, e] S:(A → B)"
+            - "[T, e] T:A"
+        then:
+            - ["[T, e] (S * T) : B"]
+        where:
+            and:
+                - occurs: "A → B"
+                  with: [subterms, formulas]
+                  in:
+                      union: [root, assumptions]
+                - occurs: "S * T"
+                  with: subterms
+                  in: root
+    PBe:
+        if: []
+        then:
+            - ["[T, e] T:A"]
+            - ["[F, e] T:A"]
+        where:
+            and:
+                - bind: "A"
+                  with: [subterms, formulas]
+                  in: 
+                      union: [root, assumptions]
+                - bind: "T"
+                  with: [subterms, justifications]
+                  in: root
+    PB:
+        if: []
+        then:
+            - ["[T] A"]
+            - ["[F] A"]
+        where:
+            bind: "A"
+            with: [subterms, formulas]
+            in: 
+                union: [root, assumptions]
+assumptions: []

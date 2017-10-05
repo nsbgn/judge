@@ -1,0 +1,64 @@
+logic: justification
+system: tableau
+name: J₀
+description: |
+    This system represents a relatively strong reduction of J0-naive.yml; it is not yet clear if it will work.
+rules:
+    "F→":
+        if:
+            - "[F] A → B"
+        then: 
+            - ["[T] A", "[F] B"]
+    "T→":
+        if:
+            - "[T] A -> B"
+        then:
+            - ["[F] A"]
+            - ["[T] B"]
+    Te:
+        if:
+            - "[T] T:A"
+        then:
+            - ["[T, e] T:A"]
+    Fe:
+        if:
+            - "[F] T:A"
+        then:
+            - ["[F, e] T:A"]
+    "F+":
+        if:
+            - "[F, e] T+S:A"
+        then: # This rule is not correct: it should be two γ-rules, not one β-rule.
+            - ["[F, e] T:A"]
+            - ["[F, e] S:A"]
+    "T·":
+        if:
+            - "[T, e] S:(A → B)"
+            - "[T, e] T:A"
+        then:
+            - ["[T, e] (S * T) : B"]
+        where:
+            and:
+                - occurs: "A → B"
+                  with: subterms
+                  in:
+                      union:
+                          - root
+                          - assumptions
+                - occurs: "S * T"
+                  with: subterms
+                  in: root
+    "F·": # This rule may work, but will not be handled correctly in all cases since we have no behaviour for γ-rules yet. See todo-list.
+        if:
+            - "[F, e] (S * T) : B"
+        then:
+            - ["[F, e] S:(A → B)"]
+            - ["[F, e] T:A"]
+        where:
+            bind: "A → B"
+            with: subterms
+            in:
+                union:
+                    - root
+                    - assumptions
+assumptions: []
