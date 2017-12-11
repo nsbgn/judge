@@ -149,8 +149,8 @@ matches :: forall ext . (F.Extension ext)
         -> TS.Rule ext
         -> Branch ext
         -> [Match ext]
-matches τ ρ@(name := premises :> conclusion :| constraint) branch = 
-    foldM match initial (TS.premises ρ) >>= constrain
+matches τ ρ@(name := premises :> conclusion :| (handler, constraint)) branch = 
+    foldM match initial premises >>= constrain
     
     where
 
@@ -232,8 +232,11 @@ expand θ@(Tableau {rulesαβ, assumptions})
         ρF <- maybe [] L.focus rulesε
         let ρ = L.current ρF
         -- Obtain a match with the current branch
-        μ@(Match {matched, assignment, rule, remainder, constraint}) 
-            <- matches τ ρ π
+        μ@(Match {matched, assignment, rule, remainder, constraint}) <- 
+            matches τ ρ π
+            --case handler of
+            --    TS.Nondeterministic -> 
+            --    TS.Greedy -> matches τ ρ π
         -- Obtain matching formulas
         disjunction <- introductions μ
         return $ 

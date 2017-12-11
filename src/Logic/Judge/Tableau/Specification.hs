@@ -43,7 +43,7 @@ data BaseRule ext =  [F.Marked (F.Formula ext)]
 infixr 9 :>
 
 -- | Relate a rule to its constraint.
-data Guard rule constraint = rule :| constraint
+data Guard rule constraint = rule :| (ConstraintHandler,constraint)
 infixr 8 :|
 
 -- | An uninstantiated rule.
@@ -53,7 +53,8 @@ type RulePlain ext = Ref String (Guard (BaseRule ext) (Constraint ext))
 type Rule ext = Ref String (Guard (BaseRule ext) (ConstraintX ext))
 
 -- | Extract the premises from a rule.
-premises :: Ref String (Guard (BaseRule ext) constraint) -> [F.Marked (F.Formula ext)]
+premises :: Ref String (Guard (BaseRule ext) constraint) 
+         -> [F.Marked (F.Formula ext)]
 premises (_ := φ :> _ :| _) = φ
 
 -- | Extract the conclusions from a rule.
@@ -62,7 +63,7 @@ conclusion (_ := _ :> ψ :| _) = ψ
 
 -- | Extract the constraint from a rule.
 constraint :: Ref String (Guard (BaseRule ext) constraint) -> constraint
-constraint (_ := _ :> _ :| ι) = ι
+constraint (_ := _ :> _ :| (_,ι)) = ι
 
 
 -- | Represent sets of formulas to be used in constraints. Note that some
@@ -103,6 +104,9 @@ data TermsSpecification ext
 -- refers to the root formula including or excluding marks.
 type TermsConcretisation ext = TermsPrimitive -> Maybe [F.Term ext]
 
+
+-- | Indicates how to handle multiple instantiations.
+data ConstraintHandler = Greedy | Nondeterministic
 
 
 -- | A constraint is placed on a tableau rule to restrict the values to which
@@ -182,8 +186,7 @@ type ConstraintX ext = L.PointedList (ConstraintG ext, ConstraintD ext)
 
 
 -- | Check that a given variable assignment does not conflict with the given
--- prohibitive constraint. At this point, all concrete terms should be known at
--- this point.
+-- prohibitive constraint. At this point, all concrete terms should be known.
 --
 -- TODO: Note that this definition does not make sure that each schematic
 -- variable in the found patterns refers to the same concrete variable; the
@@ -248,7 +251,7 @@ concrete τbase τspec = case τspec of
 withRule :: Ref String (Guard (BaseRule ext) constraint) 
          -> constraint1
          -> Ref String (Guard (BaseRule ext) constraint1)
-withRule (n := φ :> ψ :| ι) ι' = n := φ :> ψ :| ι'
+withRule (n := φ :> ψ :| (ιhandler, ι)) ι' = n := φ :> ψ :| (ιhandler, ι')
 
 
 
@@ -271,7 +274,7 @@ instantiate :: forall ext . (F.Extension ext)
             => TermsConcretisation ext
             -> RulePlain ext
             -> Maybe (Rule ext)
-instantiate source ρ@(n := φ :> ψ :| ι) = 
+instantiate source ρ@(n := φ :> ψ :| (ιhandler,ι)) = 
     withRule ρ <$> (instantiateList ι >>= makeZipper)
 
     where

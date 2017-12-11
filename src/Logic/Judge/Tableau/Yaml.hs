@@ -68,7 +68,22 @@ instance (Y.FromJSON a, F.Extension ext) => Y.FromJSON (T.Guard a (T.Constraint 
     parseJSON = Y.withObject "constrained tableau rule" $ \o ->
         (:|)
             <$> Y.parseJSON (Y.Object o) 
-            <*> o .:? "where" .!= T.None
+            <*> (
+            (,)
+                <$> o .:? "combine" .!= T.Nondeterministic
+                <*> o .:? "where" .!= T.None
+            )
+
+
+
+instance Y.FromJSON T.ConstraintHandler where
+    parseJSON = Y.withText expected $ \s -> case s of
+        "nondeterministic" -> return T.Nondeterministic
+        "greedy"           -> return T.Greedy
+        invalid            -> Y.typeMismatch expected (Y.String invalid)
+
+        where expected = "instance combinator"
+
 
 
 instance Y.FromJSON T.TermsPrimitive where

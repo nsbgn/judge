@@ -23,6 +23,6 @@ analyseSystem system goal = do
 
 
 analyseRule :: TS.Rule ext -> IO ()
-analyseRule (name := _ :> _ :| constraint) = do
+analyseRule (name := _ :> _ :| (_, constraint)) = do
     putStr $ name ++ ": "
     putStrLn $ (show . sum . fmap (length . fst) $ constraint)
