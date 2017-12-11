@@ -10,10 +10,28 @@ At the moment, the sort of rules I want to use are not possible. They rely on
 the idea that either *at least one* of the rules applicable to a node must 
 lead to a closed subtableau, or that *all* of them do.
 
-The first issue is discussed in [#overlapping]. I propose to deal with the 
-second issue by adding a `compose` key to the system. This key determines what 
-to do with the different instantiations of a rule. The possible values will 
-be:
+Remember that a greedy heuristic is used to determine *which rule* is to be 
+chosen next, and *which formulas* the rule will consume. After all, we can 
+treat the *order* of rule application as irrelevant in terms of computability 
+(but not in terms of complexity --- see also [#rule-sorting]).
+
+However, we cannot take this greedy approach when the *productions* of the 
+rule can also take multiple possible values. Choosing a different production 
+will not lead to a simple permutation of the same tableau: instantiations 
+represent a set of *overlapping* rules, and making a choice will lead to a 
+tableau that is genuinely different (see also [#rule-warnings]).
+
+Therefore, we must try all choices at this level, until we find one that leads 
+to closure. (If we could, we would try them all and only keep the shortest 
+one, but that is likely prohibitively expensive; nevertheless, we could still 
+offer an option to toggle shortest proof finding.)
+
+To deal with this, I propose to add a `compose` key to the system. This key 
+determines what to do with the different instantiations *generated* by the 
+rule (it should not affect the degenerative constraints of a rule, since a 
+constraint only limits the applicability of a rule but does not change the 
+rule itself). We will call this handler the *compositor*, and it can take the 
+following values:
 
 - `nondeterministic`: Default. Different instantiations simply produce 
   different rules. Since the rules will overlap, this means that we may have 
@@ -24,6 +42,10 @@ be:
   probably be the setting for PB-rules, as the order of application is 
   irrelevant — they don't consume any formulas off the branch anyway.)
 
+This solves the first issue, where at least one of the instantiations must 
+lead to a closed subtableau. For the second issue, where *all* instantiations 
+must lead to a closed subtableau, we may add the following values:
+
 - `disjunctive`: The productions of each (applicable) instantiation on a node 
   are taken together, each under its own branch. In practice, this will have 
   the effect that the rule will require closure under *each* instantiation --- 
@@ -31,40 +53,14 @@ be:
   under *at least one* instantiation.
 
 - `conjunctive`: The productions of each (applicable) instantiation on a node 
-  are taken together, and appended to the branch one after the other. 
-
-Of these, `disjunctive` and `nondeterministic` are the ones that are vital for 
-my use case, and the other two are natural duals (but they could be left out 
-because YAGNI).
+  are taken together, and appended to the branch one after the other. This is 
+  a natural dual, but I don't see an immediate application.
 
 #priority:high
 
 
 
-Overlapping rules                                                   {#overlap}
-===============================================================================
-
-At the moment, the sort of rules I want to use are not possible. They rely on 
-the idea that either *at least one* of the rules applicable to a node must 
-lead to a closed subtableau, or that *all* of them do.
-
-The second issue is discussed in [#compose]. For the first issue, we must make 
-sure that overlapping rules are handled properly. We can treat the *order* of 
-rule application as irrelevant (in terms of computability, not complexity), 
-but when we have choice *on the same node*, we cannot take this greedy 
-approach. 
-
-Instead, when two or more rules are applicable to the same non-empty set of 
-unprocessed formulas on the branch, we should try them out, until we find one 
-that leads to closure. (If we could, we would try them all and only keep the 
-shortest one, but that is likely prohibitively expensive; nevertheless, we 
-could still offer an option to toggle shortest proof finding.)
-
-#priority:high
-
-
-
-Clarifying terminology                                         {#terminology}
+Explicitness & clarification of terminology                        {#explicit}
 ===============================================================================
 
 The word 'premise' is now used for the part of the rule that is assumed to be 
@@ -80,14 +76,15 @@ I suggest that:
 
 - The premises are the 'consumptions'. The key is `consume`.
 - The conclusions are the 'productions'. The key is `produce`.
-- The constraints are the 'instantiations'. The key is still `where`.
+- Constraints are 'instantiators'. Degenerative constraints are 'constrainers' 
+  (ι-), whereas generative constraints are 'generators' (ι+).
+  In the YAML, these instantiators are mixed into a single key. Perhaps it 
+  would be clearer to seperate them into a `generate` and `constrain` keys.
 
 The code should be updated to reflect this. The code should also be made more 
 uniform and disambiguating in its use of words to describe 
 'permissive'/'generative' constraints and 'prohibitive'/'degenerative' 
 constraints, 'ε-rules'/'PB-rules', 'marks'/'signatures', etcetera.
-
-#priority:high
 
 
 
@@ -154,7 +151,7 @@ we can do is issue a warning.
 
 We might also have overlapping rules, that is, two rules may be applicable to 
 (some) of the same formulas on the branch. Note that this is different from 
-the problem that [#overlap] attempts to solve, since rules may overlap without 
+the problem that [#compose] attempts to solve, since rules may overlap without 
 being an instance of the same meta-rule. It will be helpful to issue a warning 
 in these cases. Moreover, we might want to change a setting to determine 
 whether these cases are to be handled nondeterministically or greedily.
@@ -233,6 +230,9 @@ next, and PB-rules after that).
 
 It should be possible to provide a manual sorting of rules. It is also 
 conceivable to have a setting to find a sensible ordering automatically.
+
+Make `Rule`s an instance of `Ord` so that we can implement the greedy 
+heuristic.
 
 #priority:high
 
@@ -432,6 +432,13 @@ same within the context of a single formula.
 This variable would also work in `bind` constraints, and would therefore also 
 contribute to solving [#surplus].
 
+
+
+Make unicode output optional                                        {#unicode}
+===============================================================================
+
+Make an option to output only ascii code, (and autodetect `$TERM` to see if 
+there is unicode support).
 
 
 Stretch goals                                                       {#support}
