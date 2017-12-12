@@ -70,7 +70,7 @@ instance (Y.FromJSON a, F.Extension ext) => Y.FromJSON (T.Guard a (T.Constraint 
             <$> Y.parseJSON (Y.Object o) 
             <*> (
             (,)
-                <$> o .:? "combine" .!= T.Nondeterministic
+                <$> o .:? "compose" .!= T.Nondeterministic
                 <*> o .:? "where" .!= T.None
             )
 

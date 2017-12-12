@@ -3,48 +3,23 @@ title: TODO
 ---
 
 
+Make the constraint logic less complicated                      {#constraints}
+===============================================================================
+
+Right now, constraints are interpreted and translated in a complicated way. It 
+is probably best to explicitly seperate generative and restrictive 
+constraints.
+
+
+
 Composing rules with multiple instantiations                        {#compose}
 ===============================================================================
 
-At the moment, the sort of rules I want to use are not possible. They rely on 
-the idea that either *at least one* of the rules applicable to a node must 
-lead to a closed subtableau, or that *all* of them do.
-
-Remember that a greedy heuristic is used to determine *which rule* is to be 
-chosen next, and *which formulas* the rule will consume. After all, we can 
-treat the *order* of rule application as irrelevant in terms of computability 
-(but not in terms of complexity --- see also [#rule-sorting]).
-
-However, we cannot take this greedy approach when the *productions* of the 
-rule can also take multiple possible values. Choosing a different production 
-will not lead to a simple permutation of the same tableau: instantiations 
-represent a set of *overlapping* rules, and making a choice will lead to a 
-tableau that is genuinely different (see also [#rule-warnings]).
-
-Therefore, we must try all choices at this level, until we find one that leads 
-to closure. (If we could, we would try them all and only keep the shortest 
-one, but that is likely prohibitively expensive; nevertheless, we could still 
-offer an option to toggle shortest proof finding.)
-
-To deal with this, I propose to add a `compose` key to the system. This key 
-determines what to do with the different instantiations *generated* by the 
-rule (it should not affect the degenerative constraints of a rule, since a 
-constraint only limits the applicability of a rule but does not change the 
-rule itself). We will call this handler the *compositor*, and it can take the 
-following values:
-
-- `nondeterministic`: Default. Different instantiations simply produce 
-  different rules. Since the rules will overlap, this means that we may have 
-  to try out different paths until we find one that leads to a closed tableau. 
-
-- `greedy`: As it is now. When there are multiple instantiations of a rule, we 
-  will assume that the first applicable one is the one we need. (This should 
-  probably be the setting for PB-rules, as the order of application is 
-  irrelevant — they don't consume any formulas off the branch anyway.)
-
-This solves the first issue, where at least one of the instantiations must 
-lead to a closed subtableau. For the second issue, where *all* instantiations 
-must lead to a closed subtableau, we may add the following values:
+It is as of now possible to define rules such that *at least one* of the rules 
+applicable to a node must lead to a closed subtableau, by defining multiple 
+instances of a single rule, using the `compose` key. However, it is not yet 
+possible to say that *all* instantiations must lead to a closed subtableau. To 
+solve this, we may add the following values to the `compose` key:
 
 - `disjunctive`: The productions of each (applicable) instantiation on a node 
   are taken together, each under its own branch. In practice, this will have 
@@ -55,8 +30,6 @@ must lead to a closed subtableau, we may add the following values:
 - `conjunctive`: The productions of each (applicable) instantiation on a node 
   are taken together, and appended to the branch one after the other. This is 
   a natural dual, but I don't see an immediate application.
-
-#priority:high
 
 
 
@@ -79,7 +52,14 @@ I suggest that:
 - Constraints are 'instantiators'. Degenerative constraints are 'constrainers' 
   (ι-), whereas generative constraints are 'generators' (ι+).
   In the YAML, these instantiators are mixed into a single key. Perhaps it 
-  would be clearer to seperate them into a `generate` and `constrain` keys.
+  would be clearer to seperate them into a `generate` and `constrain` keys. 
+  Associate the former with the productions, and the latter with the 
+  consumptions, since that's what they are ideally used for (though note that 
+  we could also use constraints to further limit generated assignments to 
+  dynamic terms). We could generalise, but I think simplicity is preferable 
+  here.
+- A 'Proof' should be a 'Tableau' and a 'Tableau' should be something akin to 
+  a State monad.
 
 The code should be updated to reflect this. The code should also be made more 
 uniform and disambiguating in its use of words to describe 

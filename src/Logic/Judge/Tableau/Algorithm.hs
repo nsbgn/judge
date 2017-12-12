@@ -138,8 +138,9 @@ introductions (Match {assignment, rule}) =
 
 -- | A tableau rule has zero or more formula schemes that represent premises.
 -- Those premises must be matched against the concrete formulas that remain on
--- the branch unprocessed, and the additional constraints associated with the
--- rule. This function provides all possible 'Match'es for a single rule.
+-- the branch unprocessed. This function provides all possible 'Match'es for
+-- the consumptions of a single rule, but does not further restrict or
+-- instantiate the matches.
 --
 -- For efficiency, the 'biggest' formulas should be the first to be matched.
 -- Note that the remainder is always focused on the element next to the last
@@ -149,14 +150,14 @@ matches :: forall ext . (F.Extension ext)
         -> TS.Rule ext
         -> Branch ext
         -> [Match ext]
-matches τ ρ@(name := premises :> conclusion :| (handler, constraint)) branch = 
-    foldM match initial premises >>= constrain
+matches τ ρ@(name := premises :> conclusion :| (handler, constraint)) branch =
+    foldM match μ₀ premises
     
     where
 
     -- | Initial match.
-    initial :: Match ext
-    initial = Match 
+    μ₀ :: Match ext
+    μ₀ = Match 
         { matched = mempty
         , assignment = mempty
         , remainder = actives branch
@@ -175,44 +176,76 @@ matches τ ρ@(name := premises :> conclusion :| (handler, constraint)) branch =
             , remainder = L.delete activeF
             , assignment = σ
             }
-    
+   
 
-    -- | Generate or prune matches from a partial match, based on constraints. 
-    constrain :: Match ext -> [Match ext]
-    constrain μ@(Match {assignment, constraint}) = do
-        constraintF <- maybe [] L.focus constraint
-        let (generative, degenerative) = L.current constraintF
-        assignmentsF <- L.focus generative
-        σ <- Fσ.merge assignment (L.current assignmentsF)
-        guard (TS.respects τ σ degenerative)
-        return μ 
-            { assignment = σ
-            , constraint = L.update constraintF $ 
-                (, degenerative) <$> L.delete assignmentsF
-            }
+-- | Further generate partial matches as given by the generative
+-- constraints.
+instances :: forall ext . (F.Extension ext)
+            => TS.TermsConcretisation ext
+            -> Match ext 
+            -> [Match ext]
+instances τ μ@(Match {assignment, constraint}) = do
+    constraintF <- maybe [] L.focus constraint
+    let (generative, degenerative) = L.current constraintF
+    assignmentsF <- L.focus generative
+    σ <- Fσ.merge assignment (L.current assignmentsF)
+    guard (TS.respects τ σ degenerative)
+    return μ 
+        { assignment = σ
+        , constraint = L.update constraintF $ 
+            (, degenerative) <$> L.delete assignmentsF
+        }
 
 
-
--- | Provide the first possibility for expanding a single branch once.
-expand :: forall ext . (F.Extension ext)
-       => Tableau ext
-       -> Branch ext
-       -> Maybe [Branch ext]
-expand θ@(Tableau {rulesαβ, assumptions})
-       π@(Branch {rulesε, inactives, counter}) 
-       = listToMaybe $ optionsαβ ++ optionsε
+-- | Greedily pick a rule and consumptions to work with. Return all possible
+-- instances of said rule.
+--
+-- Picks a rule and match its consumptions with a set of formulas on the
+-- branch. Then instantiate said rule (removing it if there turn out to be no
+-- applicable instantiations)
+matchSets :: forall ext m . (F.Extension ext, Monad m)
+          => Tableau ext 
+          -> Branch ext 
+          -> m [Match ext]
+matchSets θ@(Tableau {rulesαβ, assumptions}) 
+          π = greedy . filter (not . null) . map (instances τ) $ do
+            ρ@(_ := _ :> _ :| (handler, _)) <- rulesαβ
+            μ <- case handler of
+                TS.Greedy -> greedy $ matches τ ρ π
+                TS.Nondeterministic -> matches τ ρ π
+            return μ
 
     where
     τ :: TS.TermsConcretisation ext
     τ = dynamicConcretisation θ π
 
+
+
+-- | Take the first option from a list of options.
+greedy :: Monad m => [a] -> m a
+greedy = maybe (fail mempty) return . listToMaybe
+
+
+
+-- | Provide all possibilities for expanding a single branch once: greedily
+-- selecting the rules and its consumptions, but possibly keeping the
+-- productions nondeterministic.
+expand :: forall ext . (F.Extension ext)
+       => Tableau ext
+       -> Branch ext
+       -> [[Branch ext]]
+expand θ@(Tableau {rulesαβ, assumptions})
+       π@(Branch {rulesε, inactives, counter}) 
+       = optionsαβ {-<|> optionsε doesn't work this way... -}
+
+    where
+
     optionsαβ :: [[Branch ext]]
     optionsαβ = do
-        -- Pick a rule to try
-        ρ <- rulesαβ
-        -- Obtain a match with the current branch
-        μ@(Match {matched, assignment, rule, remainder, constraint}) 
-            <- matches τ ρ π 
+        -- Greedily pick a rule and formulas on the branch
+        μs <- matchSets θ π
+        -- Generate a set of rule instances
+        μ@(Match {matched, assignment, rule, remainder, constraint}) <- μs
         -- Obtain formulas matching
         disjunction <- introductions μ
         return $ 
@@ -226,6 +259,7 @@ expand θ@(Tableau {rulesαβ, assumptions})
             | conjunction <- zipWith (:=) [counter..] <$> disjunction
             ]
 
+{-
     optionsε :: [[Branch ext]]
     optionsε = do
         -- Pick a rule to try
@@ -234,22 +268,22 @@ expand θ@(Tableau {rulesαβ, assumptions})
         -- Obtain a match with the current branch
         μ@(Match {matched, assignment, rule, remainder, constraint}) <- 
             matches τ ρ π
-            --case handler of
-            --    TS.Nondeterministic -> 
-            --    TS.Greedy -> matches τ ρ π
+        μ' <- instantiate τ μ
         -- Obtain matching formulas
-        disjunction <- introductions μ
+        disjunction <- introductions μ'
         return $ 
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives
                 , rulesε = L.update ρF $ TS.withRule ρ <$> constraint
-                , lastMatch = return μ
+                , lastMatch = return μ'
                 , lastFormulas = conjunction
                 , closed = closes conjunction (formulas π) assumptions
                 , counter = counter + length conjunction
                 }
             | conjunction <- zipWith (:=) [counter..] <$> disjunction
             ]
+
+-}
 
 
 
@@ -258,19 +292,24 @@ construct :: forall ext . (F.Extension ext)
           => Tableau ext
           -> Branch ext 
           -> Either [BranchFormula ext] (Proof ext)
-construct θ π@(Branch {lastFormulas, lastMatch, actives}) = case lastMatch of
-    Nothing -> (R.Node . Root . L.current . fromJust $ actives) <$> subproof
-    Just μ@(Match {matched, rule}) -> 
-        let ref = (TS.reference rule, map TS.reference matched) 
-        in R.Node (App ref lastFormulas) <$> case closed π of
-            True  -> return [R.Node Closure []]
-            False -> subproof
+construct θ π = maybe (Left []) Right . listToMaybe $ constructions θ π
 
-    where
-    -- | Recursive call to obtain subproofs.
-    subproof :: Either [BranchFormula ext] [Proof ext]
-    subproof = maybe (Left $ formulas π) Right (expand θ π) 
-           >>= mapM (construct θ)
+    where 
+
+    -- | Obtain all possible recursive expansions of a branch.
+    constructions :: Tableau ext -> Branch ext -> [Proof ext]
+    constructions θ π@(Branch {lastFormulas, lastMatch, actives}) = case lastMatch of
+        Nothing -> (R.Node . Root . L.current . fromJust $ actives) <$> subproof
+        Just μ@(Match {matched, rule}) -> 
+            let ref = (TS.reference rule, map TS.reference matched) 
+            in R.Node (App ref lastFormulas) <$> case closed π of
+                True  -> return [R.Node Closure []]
+                False -> subproof
+
+        where
+        -- | Obtain all possible subtableaux under the current branch.
+        subproof :: [[Proof ext]]
+        subproof = expand θ π >>= mapM (constructions θ)
 
 
 
