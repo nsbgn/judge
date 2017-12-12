@@ -29,7 +29,7 @@ styleComment = PP.cyan
 styleAnnotation = PP.magenta
 
 
-instance Printable ext => Printable (TA.ProofNode ext) where
+instance Printable ext => Printable (TA.TableauNode ext) where
     pretty (TA.Root node) = pretty node
     pretty (TA.Closure) = pretty False
     pretty (TA.App (rule, ids) nodes) = ppRule <+> ppFormulas

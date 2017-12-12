@@ -18,6 +18,7 @@ import "base" Data.Maybe (listToMaybe, mapMaybe, fromJust)
 import "base" Data.Either (isRight)
 import "base" Data.List (intersect, partition, lookup)
 import "base" Data.Char (toLower)
+import "base" Control.Applicative (Alternative, empty)
 import "base" Control.Monad (foldM, guard, forM)
 import qualified "containers" Data.Tree as R
 import qualified "containers" Data.Map as M
@@ -37,15 +38,15 @@ type BranchFormula ext = Ref Int (F.Marked (F.Formula ext))
 
 -- | A proof in a tableau system is a rose tree, containing formulas and the
 -- rule applications used to obtain them.
-type Proof ext = R.Tree (ProofNode ext)
-data ProofNode ext
+type Tableau ext = R.Tree (TableauNode ext)
+data TableauNode ext
     = App (String, [Int]) [BranchFormula ext]
     | Root (BranchFormula ext)
     | Closure
 
 
--- | "Global" tableau state.
-data Tableau ext = Tableau
+-- | Read-only, static tableau "globals".
+data TableauSettings ext = TableauSettings
     { rulesαβ :: [TS.Rule ext]
     , assumptions :: [F.Formula ext]
     , staticConcretisation :: TS.TermsConcretisation ext
@@ -136,21 +137,27 @@ introductions (Match {assignment, rule}) =
 
 
 
--- | A tableau rule has zero or more formula schemes that represent premises.
--- Those premises must be matched against the concrete formulas that remain on
--- the branch unprocessed. This function provides all possible 'Match'es for
--- the consumptions of a single rule, but does not further restrict or
--- instantiate the matches.
+-- | Take the first option from a list of options.
+greedy :: (Alternative f) => [a] -> f a
+greedy []    = empty
+greedy (x:_) = pure x
+
+
+
+-- | A tableau rule has zero or more formula schemes that represent
+-- consumptions. These must be matched against the concrete formulas that
+-- remain on the branch unprocessed. This function provides all possible 
+-- 'Match'es, but does not further instantiate the matches.
 --
 -- For efficiency, the 'biggest' formulas should be the first to be matched.
 -- Note that the remainder is always focused on the element next to the last
 -- removed element.
 matches :: forall ext . (F.Extension ext)
         => TS.TermsConcretisation ext
-        -> TS.Rule ext
         -> Branch ext
+        -> TS.Rule ext
         -> [Match ext]
-matches τ ρ@(name := premises :> conclusion :| (handler, constraint)) branch =
+matches τ π ρ@(name := premises :> conclusion :| (handler, constraint)) =
     foldM match μ₀ premises
     
     where
@@ -160,12 +167,13 @@ matches τ ρ@(name := premises :> conclusion :| (handler, constraint)) branch =
     μ₀ = Match 
         { matched = mempty
         , assignment = mempty
-        , remainder = actives branch
+        , remainder = actives π
         , constraint = return constraint
         , rule = ρ
         }
 
-    -- | Match one additional formula to an existing partial match.
+    -- | Obtain all possibilities for matching one additional formula to an
+    -- existing partial match.
     match :: Match ext -> F.Marked (F.Formula ext) -> [Match ext]
     match μ@(Match {matched, assignment, remainder}) scheme = do
         activeF <- maybe [] L.focus remainder
@@ -181,9 +189,9 @@ matches τ ρ@(name := premises :> conclusion :| (handler, constraint)) branch =
 -- | Further generate partial matches as given by the generative
 -- constraints.
 instances :: forall ext . (F.Extension ext)
-            => TS.TermsConcretisation ext
-            -> Match ext 
-            -> [Match ext]
+          => TS.TermsConcretisation ext
+          -> Match ext 
+          -> [Match ext]
 instances τ μ@(Match {assignment, constraint}) = do
     constraintF <- maybe [] L.focus constraint
     let (generative, degenerative) = L.current constraintF
@@ -197,54 +205,49 @@ instances τ μ@(Match {assignment, constraint}) = do
         }
 
 
--- | Greedily pick a rule and consumptions to work with. Return all possible
+-- | Greedily pick a rule and consumptions to work with. Obtain all possible
 -- instances of said rule.
---
--- Picks a rule and match its consumptions with a set of formulas on the
--- branch. Then instantiate said rule (removing it if there turn out to be no
--- applicable instantiations)
-matchSets :: forall ext m . (F.Extension ext, Monad m)
-          => Tableau ext 
+matchSets :: forall ext m . (F.Extension ext, Alternative m, Monad m)
+          => TableauSettings ext 
           -> Branch ext 
           -> m [Match ext]
-matchSets θ@(Tableau {rulesαβ, assumptions}) 
-          π = greedy . filter (not . null) . map (instances τ) $ do
-            ρ@(_ := _ :> _ :| (handler, _)) <- rulesαβ
-            μ <- case handler of
-                TS.Greedy -> greedy $ matches τ ρ π
-                TS.Nondeterministic -> matches τ ρ π
-            return μ
+matchSets κ@(TableauSettings {rulesαβ}) π = do 
+        μs@((Match {rule=(_ := _ :> _ :| (handler, _))}):_) <- instantiations
+        case handler of
+            TS.Greedy -> greedy <$> return μs
+            TS.Nondeterministic -> return μs
 
     where
     τ :: TS.TermsConcretisation ext
-    τ = dynamicConcretisation θ π
+    τ = dynamicConcretisation κ π
 
-
-
--- | Take the first option from a list of options.
-greedy :: Monad m => [a] -> m a
-greedy = maybe (fail mempty) return . listToMaybe
+    -- | Picks a rule and match its consumptions with a set of formulas on the
+    -- branch. Then instantiate said rule (moving on to the next match if 
+    -- there turn out to be no applicable instantiations for the current one).
+    instantiations :: m [Match ext]
+    instantiations = greedy . filter (not . null) . map (instances τ) 
+                   $ rulesαβ >>= matches τ π
 
 
 
 -- | Provide all possibilities for expanding a single branch once: greedily
 -- selecting the rules and its consumptions, but possibly keeping the
 -- productions nondeterministic.
-expand :: forall ext . (F.Extension ext)
-       => Tableau ext
-       -> Branch ext
-       -> [[Branch ext]]
-expand θ@(Tableau {rulesαβ, assumptions})
-       π@(Branch {rulesε, inactives, counter}) 
-       = optionsαβ {-<|> optionsε doesn't work this way... -}
+expand1 :: forall ext . (F.Extension ext)
+        => TableauSettings ext
+        -> Branch ext
+        -> [[Branch ext]]
+expand1 κ@(TableauSettings {rulesαβ, assumptions})
+        π@(Branch {rulesε, inactives, counter}) 
+        = optionsαβ {-<|> optionsε doesn't work this way... -}
 
     where
 
     optionsαβ :: [[Branch ext]]
     optionsαβ = do
-        -- Greedily pick a rule and formulas on the branch
-        μs <- matchSets θ π
-        -- Generate a set of rule instances
+        μs <- matchSets κ π
+        -- Greedily pick a rule and formulas on the branch, and, depending on
+        -- the rule, nondeterministically pick an instance of that rule
         μ@(Match {matched, assignment, rule, remainder, constraint}) <- μs
         -- Obtain formulas matching
         disjunction <- introductions μ
@@ -287,29 +290,36 @@ expand θ@(Tableau {rulesαβ, assumptions})
 
 
 
--- | Use 'expand' to construct a 'Proof'.
-construct :: forall ext . (F.Extension ext)
-          => Tableau ext
-          -> Branch ext 
-          -> Either [BranchFormula ext] (Proof ext)
-construct θ π = maybe (Left []) Right . listToMaybe $ constructions θ π
+
+-- | Recursively 'expand' a branch and obtain the first closed subtableau that
+-- can be constructed in this way.
+subtableau :: forall ext . (F.Extension ext) 
+           => TableauSettings ext
+           -> Branch ext 
+           -> Maybe (Tableau ext)
+subtableau κ = greedy . subtableaux
 
     where 
 
-    -- | Obtain all possible recursive expansions of a branch.
-    constructions :: Tableau ext -> Branch ext -> [Proof ext]
-    constructions θ π@(Branch {lastFormulas, lastMatch, actives}) = case lastMatch of
-        Nothing -> (R.Node . Root . L.current . fromJust $ actives) <$> subproof
-        Just μ@(Match {matched, rule}) -> 
-            let ref = (TS.reference rule, map TS.reference matched) 
-            in R.Node (App ref lastFormulas) <$> case closed π of
-                True  -> return [R.Node Closure []]
-                False -> subproof
+    -- | Obtain all possible subtableaux under a branch.
+    subtableaux :: Branch ext -> [Tableau ext]
+    subtableaux π@(Branch {lastFormulas, lastMatch, actives}) 
+      = case lastMatch of
+            Nothing -> (R.Node . Root . L.current . fromJust $ actives) <$> expand π
+            Just μ@(Match {matched, rule}) -> 
+                let ref = (TS.reference rule, map TS.reference matched) 
+                in R.Node (App ref lastFormulas) <$> case closed π of
+                    True  -> return [R.Node Closure []]
+                    False -> expand π
 
-        where
-        -- | Obtain all possible subtableaux under the current branch.
-        subproof :: [[Proof ext]]
-        subproof = expand θ π >>= mapM (constructions θ)
+    -- | Nondeterministically and recursively expand the given branch into its 
+    -- subtableaux.
+    expand :: Branch ext -> [[Tableau ext]]
+    expand π = do
+        -- Pick a possible set of branch expansions
+        πs <- expand1 κ π
+        -- Recursively expand those branches
+        mapM subtableaux πs
 
 
 
@@ -317,7 +327,7 @@ construct θ π = maybe (Left []) Right . listToMaybe $ constructions θ π
 -- heterogeneous, even if they are on different branches. This is done in a 
 -- single step at the end so that we don't have the mental (and computational) 
 -- burden of carrying a State monad everywhere. 
-renumber :: Proof ext -> Proof ext
+renumber :: Tableau ext -> Tableau ext
 renumber = flip ST.evalState (0,[]) . renumber'
 
     where
@@ -326,13 +336,13 @@ renumber = flip ST.evalState (0,[]) . renumber'
     -- current branch. The latter could probably be done implicitly, but this
     -- is easier to grasp.
 
-    renumber' :: Proof ext -> ST.State (Int, [(Int,Int)]) (Proof ext)
+    renumber' :: Tableau ext -> ST.State (Int, [(Int,Int)]) (Tableau ext)
     renumber' (R.Node ν children) = do
         proof <- R.Node <$> node ν <*> mapM renumber' children
         ST.modify (\(δ,tt) -> (δ+1,tt)) 
         return proof
      
-    node :: ProofNode ext -> ST.State (Int, [(Int,Int)]) (ProofNode ext)
+    node :: TableauNode ext -> ST.State (Int, [(Int,Int)]) (TableauNode ext)
     node ν@(Root (i := _)) = ST.put (0,[(i,i)]) >> return ν
     node ν@(Closure) = ST.modify (\(δ,tt) -> (δ-1,tail tt)) >> return ν
     node ν@(App (r,ids) φs) = do
@@ -350,32 +360,32 @@ renumber = flip ST.evalState (0,[]) . renumber'
 -- A branch closes when it internally contradicts. A branch that is neither 
 -- closed nor expandable corresponds to a satisfying assignment of the negation
 -- of the target formula, and constitutes a counter-model. Otherwise, we have
--- successfully shown the formula's validity and can return a 'Proof'.
+-- successfully shown the formula's validity and can return a 'Tableau'.
 decide :: forall ext . (F.Extension ext) 
        => TS.TableauSystem ext
        -> F.Formula ext
-       -> Either [BranchFormula ext] (Proof ext)
-decide system goal = renumber <$> uncurry construct (initial system goal)
+       -> Maybe (Tableau ext)
+decide system goal = renumber <$> uncurry subtableau (initial system goal)
 
 
--- | Construct the initial tableau and branch for the decision algorithm.
+-- | Construct the initial branch and settings for the decision algorithm.
 initial :: forall ext . (F.Extension ext) 
         => TS.TableauSystem ext
         -> F.Formula ext
-        -> (Tableau ext, Branch ext)
-initial system goal = (initθ, initπ)
+        -> (TableauSettings ext, Branch ext)
+initial system goal = (initκ, initπ)
 
     where
-    rootN :: Int
-    rootN = 0
 
-    initθ :: Tableau ext
-    initθ = Tableau
+    -- Initial settings
+    initκ :: TableauSettings ext
+    initκ = TableauSettings
         { rulesαβ = rulesαβ
         , staticConcretisation = staticConcretisation
         , assumptions = TS.assumptions system
         }
 
+    -- Initial branch
     initπ :: Branch ext
     initπ = Branch 
         { actives = return root
@@ -390,6 +400,10 @@ initial system goal = (initθ, initπ)
     φ :: F.Marked (F.Formula ext)
     φ = F.Marked ["F"] (F.simplify goal)
 
+    rootN :: Int
+    rootN = 0
+
+    -- | Root of the tableau.
     root :: L.PointedList (BranchFormula ext)
     root = L.singleton (rootN := φ)
 
@@ -410,7 +424,7 @@ initial system goal = (initθ, initπ)
 
 
 
-dynamicConcretisation :: Tableau ext -> Branch ext -> TS.TermsConcretisation ext
+dynamicConcretisation :: TableauSettings ext -> Branch ext -> TS.TermsConcretisation ext
 dynamicConcretisation θ π τ = case τ of
     TS.Unprocessed -> return $ (map TS.value . activesL  $ π) >>= F.asTerm
     TS.Processed   -> return $ (map TS.value . inactives $ π) >>= F.asTerm
