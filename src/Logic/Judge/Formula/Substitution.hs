@@ -200,6 +200,17 @@ insert :: (Ord k, Eq v, Monad m) => k -> v -> M.Map k v -> m (M.Map k v)
 insert k v m = sequence $ M.insertWith identical k (return v) (fmap return m)
 
 
+-- | Substitute an assignment into a list of lists of terms.
+substitute2 :: (Substitutable ext term, Monad m) 
+            => Substitution ext
+            -> [[term]]
+            -> m [[term]]
+substitute2 σ targets = 
+    let mapM2 = mapM . mapM
+    in substitute σ `mapM2` targets
+
+
+
 -- | Combine two substitutions, but fail if they are conflicting. 
 --
 -- Note: The union is more efficient if the biggest set is the first argument.

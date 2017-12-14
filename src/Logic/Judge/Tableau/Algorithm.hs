@@ -47,45 +47,52 @@ data TableauNode ext
 
 -- | Read-only, static tableau "globals".
 data TableauSettings ext = TableauSettings
-    { rulesαβ :: [TS.RuleInstantiated ext]
+    { rulesC :: [TS.RuleInstantiated ext]
+    -- ^ The consumer rules are those rules that take a consumption from the
+    -- branch. They are always available.
     , root :: F.Marked (F.Formula ext)
+    -- ^ The root of the tableau.
     , assumptions :: [F.Formula ext]
+    -- ^ The assumptions or the constant specification.
     }
 
 
 -- | A "working" branch keeps track of the leaf of a single branch and all 
 -- that came before.
 data Branch ext = Branch
- -- | Which ε-rules can still be used on the branch?
-    { rulesε :: Maybe (L.PointedList (TS.RuleInstantiated ext))
- -- | Which formulas still lie unprocessed on the branch?
+    { rulesA :: Maybe (L.PointedList (TS.RuleInstantiated ext))
+    -- ^ The ascetic rules are those rules that do not take a consumption from
+    -- the branch. In order to guarantee termination, they can be used only
+    -- once per branch — we therefore keep track of which rules can still be
+    -- used.
     , actives :: Maybe (L.PointedList (BranchFormula ext))
- -- | Which formulas have been processed on the branch?
+    -- ^ Which formulas still lie unprocessed on the branch?
     , inactives :: [BranchFormula ext]
- -- | Is this branch closed?
+    -- ^ Which formulas have been processed on the branch?
     , closed :: Bool
- -- | What was the last match to be applied to this branch?
+    -- ^ Is this branch closed?
     , lastMatch :: Maybe (Match ext)
- -- | Which formulas were the last to be introduced?
+    -- ^ What was the last match to be applied to this branch?
     , lastFormulas :: [BranchFormula ext]
- -- | What is the next identifier never to have occurred on the branch before?
+    -- ^ Which formulas were the last to be introduced?
     , counter :: Int
+    -- ^ What is the next identifier never to have occurred on the branch before?
     }
 
 
 -- | A 'Match' keeps track of information that is required when we are checking
 -- the applicability of a rule to a branch.
 data Match ext = Match
- -- | Which formulas (including their IDs) have been matched.
     { matched :: [BranchFormula ext]
- -- | Variable assignments forced by the match.
+    -- ^ Which formulas (including their IDs) have been matched?
     , assignment :: Fσ.Substitution ext
- -- | Formulas remaining active on the branch after this match.
+    -- ^ Variable assignments forced by the match so far.
     , remainder :: Maybe (L.PointedList (BranchFormula ext))
- -- | Generator as it remains on the branch
-    , generator' :: Maybe (L.PointedList (Fσ.Substitution ext))
- -- | Which rule was applied to find the match.
+    -- ^ Formulas remaining active on the branch after this match.
     , rule :: TS.RuleInstantiated ext
+    -- ^ Which rule was applied during the match?
+    , rule' :: Maybe (TS.RuleInstantiated ext)
+    -- ^ If application of the rule changes the rule, that is recorded here. 
     }
 
 
@@ -123,17 +130,6 @@ closes new old assumptions =
     
 
 
--- | Return a disjunction of conjunctions of formulas that would be introduced
--- by the matched rule. (TODO: Confusing.)
-concreteProductions :: (F.Extension ext, Monad m) 
-                    => Match ext 
-                    -> m [[F.Marked (F.Formula ext)]]
-concreteProductions (Match {assignment, rule}) = 
-    let mapM2 = mapM . mapM
-    in Fσ.substitute assignment `mapM2` TS.productions rule
-
-
-
 -- | Take the first option from a list of options.
 greedy :: (Alternative f) => [a] -> f a
 greedy []    = empty
@@ -153,7 +149,7 @@ matchRule :: forall ext . (F.Extension ext)
           => Branch ext
           -> TS.RuleInstantiated ext
           -> [Match ext]
-matchRule π ρ@TS.Rule {TS.consumptions, TS.generator} =
+matchRule π ρ@TS.Rule {TS.consumptions} =
     foldM match μ₀ consumptions
     
     where
@@ -165,7 +161,7 @@ matchRule π ρ@TS.Rule {TS.consumptions, TS.generator} =
         , assignment = mempty
         , remainder = actives π
         , rule = ρ
-        , generator' = return generator
+        , rule' = Just ρ
         }
 
     -- | Obtain all possibilities for matching one additional formula to an
@@ -180,43 +176,38 @@ matchRule π ρ@TS.Rule {TS.consumptions, TS.generator} =
             , remainder = L.delete activeF
             , assignment = σ
             }
-   
 
 
--- | Greedily pick a rule and consumptions to work with. Obtain all possible
--- instantiations of said rule.
+
+-- | Greedily pick a rule and consumptions to work with, and obtain all
+-- possible instantiations of said rule. This way, nondeterminism is kept at
+-- the level of generated instances.
 matches :: forall ext . (F.Extension ext)
         => TableauSettings ext 
         -> Branch ext 
         -> [Match ext]
-matches κ@(TableauSettings {rulesαβ}) π = join $ do 
-    μs <- instantiations
-    let TS.Rule {TS.compositor} = rule $ head μs 
-    case compositor of
+matches κ@(TableauSettings {rulesC}) π = join $ do 
+    μs <- greedy . filter (not . null) . map instantiateMatch 
+        $ rulesC >>= matchRule π
+    case TS.compositor . rule . head $ μs of
         TS.Greedy -> greedy <$> return μs
         TS.Nondeterministic -> return μs
 
     where
-    -- | Keep nondeterminism at the level of generated instances, by picking a 
-    -- rule and its consumptions greedily, then instantiating said rule, moving
-    -- on to the next match only if there turn out to be no applicable 
-    -- instantiations for the current one.
-    instantiations :: (Monad m, Alternative m) => m [Match ext]
-    instantiations = greedy . filter (not . null) . map instantiate 
-                   $ rulesαβ >>= matchRule π
-
-
-    -- | Generate instances of a rule that has been partially matched.
-    instantiate :: Match ext 
-                -> [Match ext]
-    instantiate μ@(Match {assignment, generator', rule}) = do
-        σF <- maybe [] L.focus generator'
+    -- | Generate a match for every instance of the rule that was partially
+    -- matched.
+    instantiateMatch :: Match ext 
+                     -> [Match ext]
+    instantiateMatch μ@(Match { assignment
+                              , rule'=Just (ρ@TS.Rule { TS.constraint
+                                                      , TS.generator })
+                              }) = do
+        σF <- L.focus generator
         σ <- Fσ.merge assignment (L.current σF)
-        let (ρ@TS.Rule {TS.constraint}) = rule
         guard (TS.respects (concretiser (dynamic κ π)) σ constraint)
         return μ 
             { assignment = σ
-            , generator' = L.delete σF
+            , rule' = fmap (\g -> ρ { TS.generator = g}) (L.delete σF)
             }
 
 
@@ -228,19 +219,22 @@ expand1 :: forall ext . (F.Extension ext)
         => TableauSettings ext
         -> Branch ext
         -> [[Branch ext]]
-expand1 κ@(TableauSettings {rulesαβ, assumptions})
-        π@(Branch {rulesε, inactives, counter}) 
-        = optionsαβ {-<|> optionsε doesn't work this way... -}
-
+expand1 κ@(TableauSettings {rulesC, assumptions})
+        π@(Branch {rulesA, inactives, counter}) =
+        if null consumers
+            then ascetics
+            else consumers
+            
     where
 
-    optionsαβ :: [[Branch ext]]
-    optionsαβ = do
+    -- | All the options for expanding a branch using a consumer rule.
+    consumers :: [[Branch ext]]
+    consumers = do
         -- Greedily pick a rule and formulas on the branch, and, depending on
         -- the rule, nondeterministically pick an instance of that rule.
-        μ@(Match {matched, remainder}) <- matches κ π
-        -- Unwrap the productions of the match we picked
-        disjunction <- concreteProductions μ
+        μ@(Match {matched, remainder, assignment, rule}) <- matches κ π
+        -- Instantiate and unwrap the productions of the match we picked
+        disjunction <- Fσ.substitute2 assignment (TS.productions rule)
         -- Present the newly created branches
         return $ 
             [ π { actives = L.insertAll conjunction remainder
@@ -252,6 +246,8 @@ expand1 κ@(TableauSettings {rulesαβ, assumptions})
                 }
             | conjunction <- zipWith (:=) [counter..] <$> disjunction 
             ]
+
+    ascetics = []
 {-
     optionsε :: [[Branch ext]]
     optionsε = do
@@ -266,7 +262,7 @@ expand1 κ@(TableauSettings {rulesαβ, assumptions})
         return $ 
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives
-                , rulesε = L.update ρF $ TS.withRule ρ <$> constraint
+                , rulesA = L.update ρF $ TS.withRule ρ <$> constraint
                 , lastMatch = return μ
                 , lastFormulas = conjunction
                 , closed = closes conjunction (formulas π) assumptions
@@ -368,7 +364,7 @@ initial system goal = (initκ, initπ)
     -- Initial settings
     initκ :: TableauSettings ext
     initκ = TableauSettings
-        { rulesαβ = rulesαβ
+        { rulesC = rulesC
         , root = φ
         , assumptions = TS.assumptions system
         }
@@ -378,27 +374,25 @@ initial system goal = (initκ, initπ)
     initπ = Branch 
         { actives = return root
         , inactives = []
-        , rulesε = L.fromList rulesε
+        , rulesA = L.fromList rulesA
         , closed = closes root root (TS.assumptions system)
         , lastMatch = Nothing
         , lastFormulas = []
-        , counter = rootN + 1
+        , counter = 1
         }
 
+    -- | Root of the tableau
     φ :: F.Marked (F.Formula ext)
     φ = F.Marked ["F"] (F.simplify goal)
 
-    rootN :: Int
-    rootN = 0
-
     -- | Root of the tableau.
     root :: L.PointedList (BranchFormula ext)
-    root = L.singleton (rootN := φ)
+    root = L.singleton (0 := φ)
 
-    -- | Rules are seperated into ε-rules (which do not consume anything) and
-    -- αβ-rules (which do). The former may be applied only once per branch,
-    -- while the latter can be applied any number of times. 
-    (rulesε, rulesαβ) = 
+    -- | Rules are seperated into ascetic rules and consumer rules. To preserve
+    -- termination, the former may be applied only once per branch, while the
+    -- latter can be applied any number of times.
+    (rulesA, rulesC) = 
           partition (null . TS.consumptions) 
         . mapMaybe (TS.instantiateRule (concretiser (static initκ)))
         . TS.rules 
