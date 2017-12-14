@@ -179,36 +179,41 @@ matchRule π ρ@TS.Rule {TS.consumptions} =
 
 
 
--- | Greedily pick a rule and consumptions to work with, and obtain all
--- possible instantiations of said rule. This way, nondeterminism is kept at
--- the level of generated instances.
-matches :: forall ext . (F.Extension ext)
-        => TableauSettings ext 
-        -> Branch ext 
-        -> [Match ext]
-matches κ@(TableauSettings {rulesC}) π = join $ do 
-    μs <- greedy . filter (not . null) . map instantiateMatch 
+-- | Generate a match for every instance of the rule that was partially
+-- matched.
+instantiateMatch :: forall ext . (F.Extension ext)
+                 => TableauSettings ext
+                 -> Branch ext
+                 -> Match ext 
+                 -> [Match ext]
+instantiateMatch κ π
+                 μ@(Match { assignment
+                          , rule'=Just (ρ@TS.Rule { TS.constraint
+                                                  , TS.generator })
+                          }) = do
+    σF <- L.focus generator
+    σ <- Fσ.merge assignment (L.current σF)
+    guard (TS.respects (concretiser (dynamic κ π)) σ constraint)
+    return μ 
+        { assignment = σ
+        , rule' = fmap (\g -> ρ { TS.generator = g}) (L.delete σF)
+        }
+
+
+
+-- | Greedily pick a consumer rule and consumptions to work with, but obtain
+-- all possible instantiations of said rule. This way, nondeterminism is kept
+-- at the level of generated instances.
+matchFirst :: forall ext . (F.Extension ext)
+           => TableauSettings ext 
+           -> Branch ext 
+           -> [Match ext]
+matchFirst κ@(TableauSettings {rulesC}) π = join $ do 
+    μs <- greedy . filter (not . null) . map (instantiateMatch κ π)
         $ rulesC >>= matchRule π
     case TS.compositor . rule . head $ μs of
         TS.Greedy -> greedy <$> return μs
         TS.Nondeterministic -> return μs
-
-    where
-    -- | Generate a match for every instance of the rule that was partially
-    -- matched.
-    instantiateMatch :: Match ext 
-                     -> [Match ext]
-    instantiateMatch μ@(Match { assignment
-                              , rule'=Just (ρ@TS.Rule { TS.constraint
-                                                      , TS.generator })
-                              }) = do
-        σF <- L.focus generator
-        σ <- Fσ.merge assignment (L.current σF)
-        guard (TS.respects (concretiser (dynamic κ π)) σ constraint)
-        return μ 
-            { assignment = σ
-            , rule' = fmap (\g -> ρ { TS.generator = g}) (L.delete σF)
-            }
 
 
 
@@ -227,12 +232,13 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
             
     where
 
-    -- | All the options for expanding a branch using a consumer rule.
+    -- | All instances of a greedily picked rule for expanding a branch using
+    -- a consumer rule.
     consumers :: [[Branch ext]]
     consumers = do
         -- Greedily pick a rule and formulas on the branch, and, depending on
         -- the rule, nondeterministically pick an instance of that rule.
-        μ@(Match {matched, remainder, assignment, rule}) <- matches κ π
+        μ@(Match {matched, remainder, assignment, rule}) <- matchFirstRule κ π
         -- Instantiate and unwrap the productions of the match we picked
         disjunction <- Fσ.substitute2 assignment (TS.productions rule)
         -- Present the newly created branches
@@ -246,32 +252,26 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
                 }
             | conjunction <- zipWith (:=) [counter..] <$> disjunction 
             ]
-
-    ascetics = []
-{-
-    optionsε :: [[Branch ext]]
-    optionsε = do
-        -- Pick a rule to try
-        ρF <- maybe [] L.focus rulesε
+    
+    -- | An ascetic rule must always be greedy.
+    ascetics :: [[Branch ext]]
+    ascetics = greedy $ do
+        ρF <- maybe [] L.focus rulesA
         let ρ = L.current ρF
-        -- Obtain a match with the current branch
-        μ@(Match {matched, assignment, rule, remainder, constraint}) <- 
-            matches τ ρ π
-        -- Obtain matching formulas
-        disjunction <- introductions μ
+        μ@(Match {matched, remainder, assignment, rule, rule'}) <- 
+            matchRule π ρ >>= instantiateMatch κ π
+        disjunction <- Fσ.substitute2 assignment (TS.productions rule)
         return $ 
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives
-                , rulesA = L.update ρF $ TS.withRule ρ <$> constraint
                 , lastMatch = return μ
                 , lastFormulas = conjunction
                 , closed = closes conjunction (formulas π) assumptions
                 , counter = counter + length conjunction
+                , rulesA = L.update ρF rule'
                 }
             | conjunction <- zipWith (:=) [counter..] <$> disjunction
             ]
-
--}
 
 
 
