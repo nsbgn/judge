@@ -3,12 +3,13 @@ title: TODO
 ---
 
 
-Make the constraint logic less complicated                      {#constraints}
+Include names in the rules directly                                    {#name}
 ===============================================================================
 
-Right now, constraints are interpreted and translated in a complicated way. It 
-is probably best to explicitly seperate generative and restrictive 
-constraints.
+Naming rules is done through the `Ref String` datatype. However, this 
+introduces a lot of pattern matching and clutters the code. Instead, include a 
+`name` field in the rule directly. I think readability is more important than 
+generality in this case. 
 
 
 
@@ -49,17 +50,6 @@ I suggest that:
 
 - The premises are the 'consumptions'. The key is `consume`.
 - The conclusions are the 'productions'. The key is `produce`.
-- Constraints are 'instantiators'. Degenerative constraints are 'constrainers' 
-  (ι-), whereas generative constraints are 'generators' (ι+).
-  In the YAML, these instantiators are mixed into a single key. Perhaps it 
-  would be clearer to seperate them into a `generate` and `constrain` keys. 
-  Associate the former with the productions, and the latter with the 
-  consumptions, since that's what they are ideally used for (though note that 
-  we could also use constraints to further limit generated assignments to 
-  dynamic terms). We could generalise, but I think simplicity is preferable 
-  here.
-- A 'Proof' should be a 'Tableau' and a 'Tableau' should be something akin to 
-  a State monad.
 
 The code should be updated to reflect this. The code should also be made more 
 uniform and disambiguating in its use of words to describe 
@@ -251,12 +241,12 @@ should not fail silently.
 
 Suggested checks (work-in-progress):
 
-- All variables in the productions of a rule must occur either in the 
-  constraints or in the consumptions.
+- All variables in the productions and in the constraints of a rule must occur 
+  either in the generator or in the consumptions.
 - In a disjunctive constraint, both branches must lead to a full instantiation 
   of variables in the productions.
 - Every bound variable must be used in the consequent, otherwise they are 
-  helper variables.
+  helper variables and should be eliminated in the final assignment.
 - Warn if a `bind` constraint is used on variables that were already bound.
 - Set a `--maximum-depth n` argument to prevent the proof search going on for 
   too long...

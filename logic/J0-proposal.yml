@@ -15,31 +15,21 @@ rules:
         then:
             - ["[F] A"]
             - ["[T] B"]
-    Te:
-        if:
-            - "[T] T:A"
-        then:
-            - ["[T, e] T:A"]
-    Fe:
-        if:
-            - "[F] T:A"
-        then:
-            - ["[F, e] T:A"]
     "F+":
         if:
-            - "[F, e] T+S:A"
+            - "[F] T+S:A"
         then: 
-            - ["[F, e] T:A"]
-            - ["[F, e] S:A"]
+            - ["[F] T:A"]
+            - ["[F] S:A"]
     "F·": 
         if:
-            - "[F, e] (S * T) : B"
+            - "[F] (S * T) : B"
         then:
-            - ["[F, e] S:(A → B)"]
-            - ["[F, e] T:A"]
-        where:
-            bind: "A → B"
-            with: subterms
+            - ["[F] S:(A → B)"]
+            - ["[F] T:A"]
+        generate:
+            match: "A → B"
+            with: [subterms, formulas]
             in:
                 union:
                     - root

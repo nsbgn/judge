@@ -16,16 +16,16 @@ import "base" Debug.Trace (trace, traceShow, traceM, traceShowM)
 
 import "base" Data.Maybe (listToMaybe, mapMaybe, fromJust)
 import "base" Data.Either (isRight)
-import "base" Data.List (intersect, partition, lookup)
+import "base" Data.List (intersect, partition, lookup, nub)
 import "base" Data.Char (toLower)
 import "base" Control.Applicative (Alternative, empty)
-import "base" Control.Monad (foldM, guard, forM)
+import "base" Control.Monad (foldM, guard, forM, join)
 import qualified "containers" Data.Tree as R
 import qualified "containers" Data.Map as M
 import qualified "mtl" Control.Monad.State.Lazy as ST
 
 import Logic.Judge.Printer ()
-import Logic.Judge.Tableau.Specification (Ref((:=)), Guard((:|)), BaseRule((:>)))
+import Logic.Judge.Tableau.Specification (Ref((:=)))
 import qualified Logic.Judge.PointedList as L
 import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Formula.Substitution as Fσ
@@ -47,9 +47,9 @@ data TableauNode ext
 
 -- | Read-only, static tableau "globals".
 data TableauSettings ext = TableauSettings
-    { rulesαβ :: [TS.Rule ext]
+    { rulesαβ :: [TS.RuleInstantiated ext]
+    , root :: F.Marked (F.Formula ext)
     , assumptions :: [F.Formula ext]
-    , staticConcretisation :: TS.TermsConcretisation ext
     }
 
 
@@ -57,7 +57,7 @@ data TableauSettings ext = TableauSettings
 -- that came before.
 data Branch ext = Branch
  -- | Which ε-rules can still be used on the branch?
-    { rulesε :: Maybe (L.PointedList (TS.Rule ext))
+    { rulesε :: Maybe (L.PointedList (TS.RuleInstantiated ext))
  -- | Which formulas still lie unprocessed on the branch?
     , actives :: Maybe (L.PointedList (BranchFormula ext))
  -- | Which formulas have been processed on the branch?
@@ -82,10 +82,10 @@ data Match ext = Match
     , assignment :: Fσ.Substitution ext
  -- | Formulas remaining active on the branch after this match.
     , remainder :: Maybe (L.PointedList (BranchFormula ext))
- -- | Constraint as it remains on the branch
-    , constraint :: Maybe (TS.ConstraintX ext)
+ -- | Generator as it remains on the branch
+    , generator' :: Maybe (L.PointedList (Fσ.Substitution ext))
  -- | Which rule was applied to find the match.
-    , rule :: TS.Rule ext
+    , rule :: TS.RuleInstantiated ext
     }
 
 
@@ -101,9 +101,6 @@ formulas π = maybe [] L.asList (actives π) ++ inactives π
 -- TODO: Note that some marks may denote that its formula is false. This is 
 -- taken into account, but precisely *which* marks denote falsity is hardcoded 
 -- for the moment.
---
--- TODO: Strictly, a branch should only close when two *atomary* formulas
--- contradict.
 --
 -- TODO: Also say WHICH formulas contradict.
 closes :: (Eq ext, Traversable t1, Traversable t2, Traversable t3) 
@@ -127,13 +124,13 @@ closes new old assumptions =
 
 
 -- | Return a disjunction of conjunctions of formulas that would be introduced
--- by the matched rule.
-introductions :: (F.Extension ext, Monad m) 
-              => Match ext 
-              -> m [[F.Marked (F.Formula ext)]]
-introductions (Match {assignment, rule}) = 
+-- by the matched rule. (TODO: Confusing.)
+concreteProductions :: (F.Extension ext, Monad m) 
+                    => Match ext 
+                    -> m [[F.Marked (F.Formula ext)]]
+concreteProductions (Match {assignment, rule=(n := ρ)}) = 
     let mapM2 = mapM . mapM
-    in  Fσ.substitute assignment `mapM2` TS.conclusion rule
+    in Fσ.substitute assignment `mapM2` TS.productions ρ
 
 
 
@@ -152,13 +149,12 @@ greedy (x:_) = pure x
 -- For efficiency, the 'biggest' formulas should be the first to be matched.
 -- Note that the remainder is always focused on the element next to the last
 -- removed element.
-matches :: forall ext . (F.Extension ext)
-        => TS.TermsConcretisation ext
-        -> Branch ext
-        -> TS.Rule ext
-        -> [Match ext]
-matches τ π ρ@(name := premises :> conclusion :| (handler, constraint)) =
-    foldM match μ₀ premises
+matchRule :: forall ext . (F.Extension ext)
+          => Branch ext
+          -> TS.RuleInstantiated ext
+          -> [Match ext]
+matchRule π (name := ρ@(TS.Rule {TS.consumptions, TS.generator})) =
+    foldM match μ₀ consumptions
     
     where
 
@@ -168,8 +164,8 @@ matches τ π ρ@(name := premises :> conclusion :| (handler, constraint)) =
         { matched = mempty
         , assignment = mempty
         , remainder = actives π
-        , constraint = return constraint
-        , rule = ρ
+        , rule = name := ρ
+        , generator' = return generator
         }
 
     -- | Obtain all possibilities for matching one additional formula to an
@@ -186,53 +182,53 @@ matches τ π ρ@(name := premises :> conclusion :| (handler, constraint)) =
             }
    
 
--- | Further generate partial matches as given by the generative
--- constraints.
-instances :: forall ext . (F.Extension ext)
-          => TS.TermsConcretisation ext
-          -> Match ext 
-          -> [Match ext]
-instances τ μ@(Match {assignment, constraint}) = do
-    constraintF <- maybe [] L.focus constraint
-    let (generative, degenerative) = L.current constraintF
-    assignmentsF <- L.focus generative
-    σ <- Fσ.merge assignment (L.current assignmentsF)
-    guard (TS.respects τ σ degenerative)
-    return μ 
-        { assignment = σ
-        , constraint = L.update constraintF $ 
-            (, degenerative) <$> L.delete assignmentsF
-        }
 
+{-
+matchRule = undefined
+
+-}
 
 -- | Greedily pick a rule and consumptions to work with. Obtain all possible
--- instances of said rule.
-matchSets :: forall ext m . (F.Extension ext, Alternative m, Monad m)
-          => TableauSettings ext 
-          -> Branch ext 
-          -> m [Match ext]
-matchSets κ@(TableauSettings {rulesαβ}) π = do 
-        μs@((Match {rule=(_ := _ :> _ :| (handler, _))}):_) <- instantiations
-        case handler of
-            TS.Greedy -> greedy <$> return μs
-            TS.Nondeterministic -> return μs
+-- instantiations of said rule.
+matches :: forall ext . (F.Extension ext)
+        => TableauSettings ext 
+        -> Branch ext 
+        -> [Match ext]
+matches κ@(TableauSettings {rulesαβ}) π = join $ do 
+    μs <- instantiations
+    let (n := TS.Rule {TS.compositor}) = rule $ head μs 
+    case compositor of
+        TS.Greedy -> greedy <$> return μs
+        TS.Nondeterministic -> return μs
 
     where
-    τ :: TS.TermsConcretisation ext
-    τ = dynamicConcretisation κ π
+    -- | Keep nondeterminism at the level of generated instances, by picking a 
+    -- rule and its consumptions greedily, then instantiating said rule, moving
+    -- on to the next match only if there turn out to be no applicable 
+    -- instantiations for the current one.
+    instantiations :: (Monad m, Alternative m) => m [Match ext]
+    instantiations = greedy . filter (not . null) . map instantiate 
+                   $ rulesαβ >>= matchRule π
 
-    -- | Picks a rule and match its consumptions with a set of formulas on the
-    -- branch. Then instantiate said rule (moving on to the next match if 
-    -- there turn out to be no applicable instantiations for the current one).
-    instantiations :: m [Match ext]
-    instantiations = greedy . filter (not . null) . map (instances τ) 
-                   $ rulesαβ >>= matches τ π
+
+    -- | Generate instances of a rule that has been partially matched.
+    instantiate :: Match ext 
+                -> [Match ext]
+    instantiate μ@(Match {assignment, generator', rule}) = do
+        σF <- maybe [] L.focus generator'
+        σ <- Fσ.merge assignment (L.current σF)
+        let (n := ρ@(TS.Rule {TS.constraint})) = rule
+        guard (TS.respects (concretiser (dynamic κ π)) σ constraint)
+        return μ 
+            { assignment = σ
+            , generator' = L.delete σF
+            }
 
 
 
 -- | Provide all possibilities for expanding a single branch once: greedily
--- selecting the rules and its consumptions, but possibly keeping the
--- productions nondeterministic.
+-- selecting the rules and formulas to apply them to, but possibly keeping the
+-- rule instance nondeterministic.
 expand1 :: forall ext . (F.Extension ext)
         => TableauSettings ext
         -> Branch ext
@@ -245,12 +241,12 @@ expand1 κ@(TableauSettings {rulesαβ, assumptions})
 
     optionsαβ :: [[Branch ext]]
     optionsαβ = do
-        μs <- matchSets κ π
         -- Greedily pick a rule and formulas on the branch, and, depending on
-        -- the rule, nondeterministically pick an instance of that rule
-        μ@(Match {matched, assignment, rule, remainder, constraint}) <- μs
-        -- Obtain formulas matching
-        disjunction <- introductions μ
+        -- the rule, nondeterministically pick an instance of that rule.
+        μ@(Match {matched, remainder}) <- matches κ π
+        -- Unwrap the productions of the match we picked
+        disjunction <- concreteProductions μ
+        -- Present the newly created branches
         return $ 
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives
@@ -259,9 +255,8 @@ expand1 κ@(TableauSettings {rulesαβ, assumptions})
                 , closed = closes conjunction (formulas π) assumptions
                 , counter = counter + length conjunction
                 }
-            | conjunction <- zipWith (:=) [counter..] <$> disjunction
+            | conjunction <- zipWith (:=) [counter..] <$> disjunction 
             ]
-
 {-
     optionsε :: [[Branch ext]]
     optionsε = do
@@ -271,14 +266,13 @@ expand1 κ@(TableauSettings {rulesαβ, assumptions})
         -- Obtain a match with the current branch
         μ@(Match {matched, assignment, rule, remainder, constraint}) <- 
             matches τ ρ π
-        μ' <- instantiate τ μ
         -- Obtain matching formulas
-        disjunction <- introductions μ'
+        disjunction <- introductions μ
         return $ 
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives
                 , rulesε = L.update ρF $ TS.withRule ρ <$> constraint
-                , lastMatch = return μ'
+                , lastMatch = return μ
                 , lastFormulas = conjunction
                 , closed = closes conjunction (formulas π) assumptions
                 , counter = counter + length conjunction
@@ -287,7 +281,6 @@ expand1 κ@(TableauSettings {rulesαβ, assumptions})
             ]
 
 -}
-
 
 
 
@@ -318,7 +311,7 @@ subtableau κ = greedy . subtableaux
     expand π = do
         -- Pick a possible set of branch expansions
         πs <- expand1 κ π
-        -- Recursively expand those branches
+        -- Recursively expand those branch expansions, too
         mapM subtableaux πs
 
 
@@ -381,7 +374,7 @@ initial system goal = (initκ, initπ)
     initκ :: TableauSettings ext
     initκ = TableauSettings
         { rulesαβ = rulesαβ
-        , staticConcretisation = staticConcretisation
+        , root = φ
         , assumptions = TS.assumptions system
         }
 
@@ -407,28 +400,55 @@ initial system goal = (initκ, initπ)
     root :: L.PointedList (BranchFormula ext)
     root = L.singleton (rootN := φ)
 
-    -- | Rules are seperated into ε-rules (which do not have any premises) and
+    -- | Rules are seperated into ε-rules (which do not consume anything) and
     -- αβ-rules (which do). The former may be applied only once per branch,
     -- while the latter can be applied any number of times. 
     (rulesε, rulesαβ) = 
-          partition (null . TS.premises) 
-        . mapMaybe (TS.instantiate staticConcretisation) 
+          partition (null . TS.consumptions . TS.value) 
+        . mapMaybe (TS.instantiateRule (concretiser (static initκ)))
         . TS.rules 
         $ system
 
-    staticConcretisation :: TS.TermsConcretisation ext
-    staticConcretisation τ = case τ of
-        TS.Root -> Just . F.asTerm $ φ
-        TS.Assumption -> Just . map F.Formula $ TS.assumptions system
-        _ -> Nothing
 
 
 
-dynamicConcretisation :: TableauSettings ext -> Branch ext -> TS.TermsConcretisation ext
-dynamicConcretisation θ π τ = case τ of
-    TS.Unprocessed -> return $ (map TS.value . activesL  $ π) >>= F.asTerm
-    TS.Processed   -> return $ (map TS.value . inactives $ π) >>= F.asTerm
-    _ -> staticConcretisation θ τ
+-- | Generic concretiser to convert a specification of terms into concrete
+-- terms.
+concretiser :: forall ext primitive . (Eq ext, Fσ.Substitutable ext ext)
+            => (primitive -> [F.Term ext])
+            -> TS.Terms primitive ext
+            -> [F.Term ext]
+concretiser primitive τ = nub $ case τ of
+    TS.Primitive τ      -> primitive τ
+    TS.Transform _ f τ  -> f            $ concretiser primitive τ
+    TS.Union τs         -> concat       $ map (concretiser primitive) τs
+    TS.Intersection τs  -> intersection $ map (concretiser primitive) τs
 
-    where activesL = maybe [] L.asList . actives
+
+-- | Convert a primitive static term specification into concrete terms.
+static :: TableauSettings ext
+       -> TS.PrimitiveStaticTerms
+       -> [F.Term ext]
+static κ@(TableauSettings {root, assumptions}) τ = case τ of
+    TS.Root -> F.asTerm root
+    TS.Assumption -> map F.Formula assumptions
+
+
+-- | Convert a primitive dynamic term specification into concrete terms.
+dynamic :: TableauSettings ext
+        -> Branch ext
+        -> TS.PrimitiveDynamicTerms
+        -> [F.Term ext]
+dynamic κ π τ = case τ of
+    TS.Static τ'   -> static κ τ'
+    TS.Unprocessed -> map TS.value (maybe [] L.asList $ actives π) 
+                      >>= F.asTerm
+    TS.Processed   -> map TS.value (inactives π) 
+                      >>= F.asTerm
+
+
+-- | Take the intersection of all given lists.
+intersection :: (Eq a) => [[a]] -> [a]
+intersection [] = []
+intersection xs = foldr1 intersect xs
 

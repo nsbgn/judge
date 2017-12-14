@@ -7,8 +7,8 @@ Stability   : experimental
 -}
 
 {-# LANGUAGE PackageImports #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Logic.Judge.Tableau.Specification where
 
 import "base" Debug.Trace (trace, traceShow, traceM, traceShowM)
@@ -27,7 +27,7 @@ type Pattern ext = F.Ambiguous (F.Term ext)
 
 data TableauSystem ext = TableauSystem
     { name          :: String
-    , rules         :: [RulePlain ext]
+    , rules         :: [RuleUninstantiated ext]
     , assumptions   :: [F.Formula ext]
     }
 
@@ -36,225 +36,134 @@ data TableauSystem ext = TableauSystem
 data Ref ref val = (:=) { reference :: ref, value :: val }
 infixr 7 :=
 
--- | Relates 'premises', 'antecedents' or 'conditions' to
--- 'conclusions', 'consequents' or 'results'.
-data BaseRule ext =  [F.Marked (F.Formula ext)]
-                 :> [[F.Marked (F.Formula ext)]]
-infixr 9 :>
+-- | The base rule can represent both instantiated and uninstantiated tableau
+-- rules.
+data Rule generator ext = Rule 
+    { consumptions :: [ F.Marked (F.Formula ext) ]
+    -- ^ The consumptions (also: premises, antecedents, conditions) are
+    -- formulas that are to be present on the branch before the rule may be
+    -- applied.
+    , productions :: [[ F.Marked (F.Formula ext) ]]
+    -- ^ The productions (also: conclusions, consequents, results) are the
+    -- formulas that will be created on the branch when the rule is applied. 
+    -- Represents a disjunction of conjunctions.
+    , generator :: generator
+    -- ^ A generator is a 'permissive constraint', which represents a choice 
+    -- between possible variable assignments. This approach is necessary to be
+    -- able to handle free variables in the productions: such variables
+    -- do not have a pre-existing binding to check for compliance, so they 
+    -- need to be created. This also makes it possible to keep track of which 
+    -- bindings have already been attempted over the course of an algorithm,
+    -- thus allowing for certain termination guarantees in case such 
+    -- guarantees cannot be achieved otherwise.
+    -- 
+    -- The limitation of the generator is that no variable may be bound to 
+    -- terms from a dynamic set.
+    -- Note that a rule with an empty generator is no longer useful.
+    , constraint :: Constraint PrimitiveDynamicTerms ext
+    -- ^ Although the generator *does* also restrict bound variables (with 
+    -- brute force: a variable's previous binding will block all conflicting 
+    -- assignments), it is more computationally efficient to simply check 
+    -- already known values for compliance, during runtime.
+    --
+    -- The limitation of prohibitive constraints is that they cannot deal with
+    -- 'free' variables. The intersection of generators and constraints 
+    -- alleviates both their limitations.
+    , compositor :: Compositor
+    -- ^ The compositor indicates how to handle the case where multiple 
+    -- instances are suggested by the generator.
+    }
 
--- | Relate a rule to its constraint.
-data Guard rule constraint = rule :| (ConstraintHandler,constraint)
-infixr 8 :|
+
+
+-- | Indicates how to handle rule instantiations.
+data Compositor = Greedy | Nondeterministic
+
 
 -- | An uninstantiated rule.
-type RulePlain ext = Ref String (Guard (BaseRule ext) (Constraint ext))
+type RuleUninstantiated ext = Ref String (Rule (Constraint PrimitiveStaticTerms ext) ext)
+
 
 -- | An instantiated tableau rule.
-type Rule ext = Ref String (Guard (BaseRule ext) (ConstraintX ext))
-
--- | Extract the premises from a rule.
-premises :: Ref String (Guard (BaseRule ext) constraint) 
-         -> [F.Marked (F.Formula ext)]
-premises (_ := φ :> _ :| _) = φ
-
--- | Extract the conclusions from a rule.
-conclusion :: Ref String (Guard (BaseRule ext) constraint) -> [[F.Marked (F.Formula ext)]]
-conclusion (_ := _ :> ψ :| _) = ψ
-
--- | Extract the constraint from a rule.
-constraint :: Ref String (Guard (BaseRule ext) constraint) -> constraint
-constraint (_ := _ :> _ :| (_,ι)) = ι
+type RuleInstantiated ext = Ref String (Rule (L.PointedList (Fσ.Substitution ext)) ext)
 
 
--- | Represent sets of formulas to be used in constraints. Note that some
--- constructors correspond to "static" sources, whereas others correspond to
--- "dynamic" sources. Only static sources can be used to bind to generative
--- variables, since they have to be known from the start.
-data TermsPrimitive
- -- | Static: Goal formula.
-    = Root
- -- | Static: Assumption formulas or constant specification.
-    | Assumption
- -- | Dynamic: 'Active' terms currently not processed on the branch. 
-    | Unprocessed
- -- | Dynamic: 'Inactive' terms currently processed on the branch.
+-- | Represent sets of primitive source formulas to be used in constraints. 
+data PrimitiveDynamicTerms 
+    = Static PrimitiveStaticTerms
+ -- | 'Active' terms currently not processed on the branch. 
     | Processed
+ -- | 'Inactive' terms currently processed on the branch.
+    | Unprocessed
 
 
--- | Represent terms to use in constraints. Note that only static
--- terms can bind to generative variables.
-data TermsSpecification ext
-    = Primitive TermsPrimitive
+-- | Represent sets of primitive source formulas to be used in constraints or 
+-- generators. Note that a generator can only use "static" sources.
+data PrimitiveStaticTerms 
+ -- | Goal formula.
+    = Root
+ -- | Assumption formulas or constant specification.
+    | Assumption
+
+
+-- | Represent complex sets of source terms, to be turned into concrete terms
+-- at a point when they are known.
+--
+-- When concretising terms, note when there are both marked and unmarked
+-- versions, such as for 'root', produce both of them.
+data Terms primitive ext
+    = Primitive primitive
  -- | Keep terms that occur in at least one constituent.
-    | Union [TermsSpecification ext]
+    | Union [Terms primitive ext]
  -- | Keep only terms that occur in all constituents.
-    | Intersection [TermsSpecification ext]
- -- | Apply a transformation to contextual terms.
-    | Transform String ([F.Term ext] -> [F.Term ext]) (TermsSpecification ext)
+    | Intersection [Terms primitive ext]
+ -- | Apply a transformation to terms.
+    | Transform String ([F.Term ext] -> [F.Term ext]) (Terms primitive ext)
  -- | Filter (but don't bind) terms satisfying some pattern. (TODO)
  -- | Filter (F.Pattern ext) (TermsSpecification ext)
 
+type DynamicTerms = Terms PrimitiveDynamicTerms
+type StaticTerms = Terms PrimitiveStaticTerms
 
-
--- | A concretisation turns a primitive term specification into its concrete
--- terms.
---
--- Note that terms that can be marked formulas should also be given as their
--- unmarked counterparts; for example, it is not immediately clear that 'root' 
--- refers to the root formula including or excluding marks.
-type TermsConcretisation ext = TermsPrimitive -> Maybe [F.Term ext]
-
-
--- | Indicates how to handle multiple instantiations.
-data ConstraintHandler = Greedy | Nondeterministic
 
 
 -- | A constraint is placed on a tableau rule to restrict the values to which
 -- its variables can be bound. This means that some applications of the rule
 -- will be blocked; but also that any 'free' or 'generative' variables (that 
--- is, variables that occur in the rule's conclusion but not in its premise) 
--- can now be associated with a set of possible assignments, thereby making 
--- it possible to, essentially, generate a *choice* of multiple 
+-- is, variables that occur in the rule's productions but not in its
+-- consumptions) can now be associated with a set of possible assignments, 
+-- thereby making it possible to, essentially, generate a *choice* of multiple 
 -- *instantiations* of a singular rule.
---
--- 'Bind' and 'occurs' are both 'match' operators that ensure that a given
--- pattern matches with one term from a given set of terms. When interpreting
--- them both permissively, they would behave identically; the same goes for
--- interpreting them both prohibitively. The difference emerges in hybrid
--- constraints, where 'occurs' operators are interpreted prohibitively and
--- 'bind' operators are interpreted prohibitively.
-data Constraint ext
+data Constraint primitive ext
     = None
- -- | Bind variables from a pattern to all terms that match the pattern.
- -- (TODO: but ignore special variable _).
-    | Bind (Pattern ext) (TermsSpecification ext)
- -- | Check if the given pattern occurs in the set of terms.
- -- (TODO: enforce that all variables except for the special variable _ have 
- -- to be bound)
-    | Occurs (Pattern ext) (TermsSpecification ext)
+ -- | Bind or constrain variables from a pattern to all terms that match the 
+ -- pattern.
+    | Match (Pattern ext) (Terms primitive ext)
  -- | Constraint holds if one of the subconstraints hold.
-    | Choose [Constraint ext]
+    | Choose [Constraint primitive ext]
  -- | Constraint holds if all subconstraints hold.
-    | Merge [Constraint ext]
+    | Merge [Constraint primitive ext]
 
 
--- | A 'generative' (or 'permissive') constraint represents a choice between 
--- possible variable assignments. 
---
--- This approach is necessary to be able to handle 'free' variables, since by
--- definition such variables do not have a pre-existing binding to inspect for
--- compliance to the relevant constraint. Secondly, this makes it possible to
--- keep track of which bindings have already been attempted in the course of
--- an algorithm, thus making sure that 
---
--- This is required for handling 'free' ('generative') variables,
--- since, firstly, such variables do not have a pre-existing binding to inspect 
--- for compliance to the relevant constraint; and secondly, because this makes 
--- it possible to keep track of which bindings have been attempted.
---
--- The limitation of permissive constraints is that they are unchanging; 
--- no variable may be bound to one of a dynamic set of terms.
-type ConstraintG ext = L.PointedList (Fσ.Substitution ext)
-
-
--- | Although generative constraints *do* also restrict bound variables (by 
--- "brute force": a variable's previous binding will block all conflicting 
--- assignments in the G-constraint), it is more computationally efficient to 
--- simply check already known values for satisfaction directly.
---
--- The limitation of prohibitive constraints is that they cannot deal with
--- 'free' variables. 
---
--- TODO: Note that unbound variables are 'thrown away' if they are used in a
--- pattern; this will cause confusion, so we should require that all variables
--- except the special variable "_" are bound elsewhere.
-type ConstraintD ext = Constraint ext
-
-
--- | For efficiency, we use a hybrid between permissive constraints and
--- prohibitive constraints, by giving a (disjunctive) set of alternative 
--- intersections between two types.
---
--- Note the duality here: an empty permissive constraint means that the
--- constraint will always fail, whereas an empty prohibitive constraint means
--- that the constraint will always succeed. 
---
--- Note also that a permissive constraint represents a disjunction.
-type ConstraintX ext = L.PointedList (ConstraintG ext, ConstraintD ext)
-
-
-
-
--- | Check that a given variable assignment does not conflict with the given
--- prohibitive constraint. At this point, all concrete terms should be known.
---
--- TODO: Note that this definition does not make sure that each schematic
--- variable in the found patterns refers to the same concrete variable; the
--- result of the pattern is 'thrown away'. Prohibitive constraints should
--- therefore only ever mention already bound variables.
+-- | Check that a variable assignment does not conflict with a constraint.
 respects :: forall ext . (F.Extension ext)
-         => TermsConcretisation ext
+         => (DynamicTerms ext -> [F.Term ext])
          -> Fσ.Substitution ext
-         -> ConstraintD ext
+         -> Constraint PrimitiveDynamicTerms ext
          -> Bool
-respects τbase σ ι = case ι of
-    None                 -> True
-    Choose constraints   -> any (respects τbase σ) constraints 
-    Merge constraints    -> all (respects τbase σ) constraints
-    Occurs pattern τspec -> anyMatching pattern $ concrete' τspec
-    _                    -> error2
+respects concretise σ ι = case ι of
+    None           -> True
+    Choose ιs      -> any (respects concretise σ) ιs 
+    Merge ιs       -> all (respects concretise σ) ιs
+    Match scheme τ -> anyMatching scheme τ
 
     where 
-
-    concrete' :: TermsSpecification ext -> [F.Term ext]
-    concrete' τspec = maybe error2 id $ concrete τbase τspec
-
-    anyMatching :: F.Ambiguous (F.Term ext) -> [F.Term ext] -> Bool
-    anyMatching (F.Ambiguous schemes) terms = not . null . catMaybes $ 
+    anyMatching :: F.Ambiguous (F.Term ext) -> DynamicTerms ext -> Bool
+    anyMatching (F.Ambiguous schemes) τ = not . null . catMaybes $ 
         [ Fσ.patternContinue σ scheme target
         | scheme <- schemes
-        , target <- terms
+        , target <- concretise τ
         ]
-
-    -- | These errors are not supposed to show up if called with the correct
-    -- arguments.
-    error1, error2 :: a
-    error1 = error "Cannot check 'bind' constraint during runtime."
-    error2 = error "Terms not concretised; term concretisation wrong."
-
-
--- | 'Free' or 'generative' variables are those variables that occur in the 
--- conclusion, but are not bound by the premise.
-free :: F.Extension ext => Rule ext -> [String]
-free (_ := premises :> conclusion :| _) = 
-    nub (concat conclusion >>= F.variables) 
-    \\  (premises >>= F.variables) 
-
-
-
--- | Turn a specification of a set of terms (cf. 'Terms') into its concrete
--- terms. If the specification draws from a set of terms that is unknown at the
--- time (@Nothing@), the concretisation fails. 
-concrete :: forall ext . (Eq ext, Fσ.Substitutable ext ext)
-         => TermsConcretisation ext
-         -> TermsSpecification ext
-         -> Maybe [F.Term ext]
-concrete τbase τspec = case τspec of
-    Primitive base      -> τbase base
-    Union τspecs        -> nub . concat       <$> mapM (concrete τbase) τspecs
-    Intersection τspecs -> nub . intersection <$> mapM (concrete τbase) τspecs
-    Transform _ f τspec -> f <$> concrete τbase τspec
-
-
-
--- | Update a rule's constraint to the given constraint.
-withRule :: Ref String (Guard (BaseRule ext) constraint) 
-         -> constraint1
-         -> Ref String (Guard (BaseRule ext) constraint1)
-withRule (n := φ :> ψ :| (ιhandler, ι)) ι' = n := φ :> ψ :| (ιhandler, ι')
-
-
-
 
 
 
@@ -262,97 +171,52 @@ withRule (n := φ :> ψ :| (ιhandler, ι)) ι' = n := φ :> ψ :| (ιhandler, �
 --
 -- 1. Sort the order of its premises in decreasing order of size. This makes
 -- sure that the matching algorithm will work efficiently later on. (TODO)
--- 2. Generating the assignments of its generative constraints, while deferring
--- to 'runtime' the simple checks given by degenerative constraints.
+-- 2. Generating the variable assignments of its generative constraints.
 --
--- Fails if (a) a generative constraint attempts to draw from a dynamic term
--- set, or (b) if there is not a single appropriate assignment for it.
---
--- TODO: (a) should be reported to the user, whereas (b) should fail silently 
--- (as it does now).
-instantiate :: forall ext . (F.Extension ext)
-            => TermsConcretisation ext
-            -> RulePlain ext
-            -> Maybe (Rule ext)
-instantiate source ρ@(n := φ :> ψ :| (ιhandler,ι)) = 
-    withRule ρ <$> (instantiateList ι >>= makeZipper)
+-- Note that a rule is useless if there is not a single appropriate assignment 
+-- for the generator.
+instantiateRule :: forall ext . (F.Extension ext)
+                 => (StaticTerms ext -> [F.Term ext])
+                 -> RuleUninstantiated ext
+                 -> Maybe (RuleInstantiated ext)
+instantiateRule concretise (n := ρ@Rule {generator}) = 
+    fmap 
+        (\generator' -> n := ρ { generator = generator' })
+        (L.fromList . assign $ generator)
 
     where
 
-    -- | Turn list-based constraint into zipper-based 'PointedList' constraint.
-    makeZipper :: [([Fσ.Substitution ext], Constraint ext)] 
-               -> Maybe (ConstraintX ext)
-    makeZipper xs = mapM (\(g, d) -> (,d) <$> L.fromList g) xs >>= L.fromList
+    -- | Turn a specification of a generator into an actual set of possible
+    -- assignments.
+    assign :: Constraint PrimitiveStaticTerms ext -> [Fσ.Substitution ext]
+    assign ι = nub $ case ι of
+        None      -> [mempty]
+        Choose ιs -> concat $ map assign ιs
+        Merge  ιs -> merge  $ map assign ιs
+        Match (F.Ambiguous schemes) terms -> catMaybes $ 
+            [ Fσ.pattern scheme target 
+            | scheme <- schemes
+            , target <- concretise terms
+            ]
+
+    -- | Create a single generator that respects multiple generators 
+    -- simultaneously. To see that this is valid, observe that a generator is 
+    -- really just a list of possible assignments, e.g., a disjunction. To 
+    -- rearrange a conjunction of disjunctions into a single disjunction, we
+    -- find every way to draw a single disjunct from each conjunct, and merge
+    -- every non-conflicting combination we thus find.
+    merge :: [[Fσ.Substitution ext]] -> [Fσ.Substitution ext]
+    merge = mapMaybe (foldM Fσ.merge mempty) . combinations
 
 
-    -- | Turn a constraint specification into a list-based intersectional 
-    -- constraint. Be careful: whereas a @Nothing@ degenerative constraint 
-    -- denotes unconditional success (that is, the absence of restrictions), a 
-    -- @Nothing@ intersectional constraint means failure.
-    instantiateList :: Constraint ext 
-                 -> Maybe [([Fσ.Substitution ext], Constraint ext)]
-    instantiateList κ = case κ of
-        None -> return [([mempty], None)]
-        Choose constraints -> concat <$> mapM instantiateList constraints
-        Merge constraints  -> mergeX <$> mapM instantiateList constraints
-
-        -- This should lead to an error if the pattern contains generative
-        -- variables that are not bound elsewhere.
-        Occurs pattern termspec -> 
-            return [([mempty], Occurs pattern termspec)]
-
-        -- This should lead to an error if the constraint draws from dynamic
-        -- terms.
-        Bind pattern@(F.Ambiguous schemes) termspec -> do
-            terms <- nub <$> concrete source termspec
-            return $
-                [( nub . catMaybes $ 
-                    [ Fσ.pattern scheme target 
-                    | scheme <- schemes
-                    , target <- terms
-                    ]
-                , None
-                )]
-
-
-    -- | Combine a set of intersective constraints in such a way that the 
-    -- result constraint simultaneously respects all of them.
-    -- 
-    -- To see that this is valid, note that an intersective constraint is a
-    -- pair set (itself representing the intersection of generative and 
-    -- degenerative constraint) that is to be interpreted disjunctively. 
-    -- Respecting a *set* of such constraints amounts to interpreting them 
-    -- conjunctively. We rearrange this conjunction back into a disjunction of 
-    -- every non-conflicting combination of a single disjunct drawn from each 
-    -- conjunct.
-    mergeX :: [[([Fσ.Substitution ext], Constraint ext)]] 
-           ->  [([Fσ.Substitution ext], Constraint ext)]
-    mergeX = mapMaybe (merge2 . unzip) . combinations
-
-
-    -- | Interpret two sets of constraints conjunctively.
-    merge2 :: ([[Fσ.Substitution ext]], [Constraint ext])
-           -> Maybe ([Fσ.Substitution ext], Constraint ext)
-    merge2 (gs, ds) = 
-        let (g, d) = (mergeG gs, mergeD ds)
-        in  guard (not $ null g) >> return (g, d)
-
-
-    -- | Interpret a set of generative constraints as a conjunction. The same
-    -- reasoning as for 'mergeX' applies: to rearrange a conjunction into a
-    -- disjunction, we group disjuncts from each conjunct together and merge 
-    -- them appropriately.
-    mergeG :: [[Fσ.Substitution ext]] -> [Fσ.Substitution ext]
-    mergeG = nub . mapMaybe (foldM Fσ.merge mempty) . combinations
-
-
-    -- | Interpret a set of degenerative constraints conjunctively.
-    mergeD :: [Constraint ext] -> Constraint ext
-    mergeD = 
-        (\xs -> if null xs then None else Merge xs) 
-        . filter (\x -> case x of {None -> False; _ -> True})
-
-
+{-
+-- | 'Free' or 'generative' variables are those variables that occur in the 
+-- conclusion, but are not bound by the premise.
+free :: F.Extension ext => RuleInstantiated ext -> [String]
+free (_ := Rule {consumptions, productions}) = 
+    nub (concat productions >>= F.variables) 
+    \\  (consumptions >>= F.variables) 
+-}
 
 
 -- | A variation on permutations: given a list that describes the possible
@@ -365,8 +229,3 @@ combinations [] = []
 combinations zs = foldr (\xs xss -> [ y:ys | y <- xs, ys <- xss ]) [[]] zs
 
 
-
--- | Take the intersection of all given lists.
-intersection :: (Eq a) => [[a]] -> [a]
-intersection [] = []
-intersection xs = foldr1 intersect xs

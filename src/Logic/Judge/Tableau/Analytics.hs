@@ -6,9 +6,10 @@ License     : GPL-3
 Stability   : experimental
 -}
 
+{-# LANGUAGE NamedFieldPuns #-}
 module Logic.Judge.Tableau.Analytics where
 
-import Logic.Judge.Tableau.Specification (Ref((:=)), Guard((:|)), BaseRule((:>)))
+import Logic.Judge.Tableau.Specification (Ref((:=)))
 import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Tableau.Specification as TS
 import qualified Logic.Judge.Tableau.Algorithm as TA
@@ -22,7 +23,7 @@ analyseSystem system goal = do
     where (θ, π) = TA.initial system goal
 
 
-analyseRule :: TS.Rule ext -> IO ()
-analyseRule (name := _ :> _ :| (_, constraint)) = do
+analyseRule :: TS.RuleInstantiated ext -> IO ()
+analyseRule (name := TS.Rule {TS.generator}) = do
     putStr $ name ++ ": "
-    putStrLn $ (show . sum . fmap (length . fst) $ constraint)
+    putStrLn $ (show . length $ generator)

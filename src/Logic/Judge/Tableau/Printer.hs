@@ -7,6 +7,7 @@ Stability   : experimental
 -}
 
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PackageImports #-}
 module Logic.Judge.Tableau.Printer () where
 
@@ -16,7 +17,7 @@ import "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen ((<>), (<+>), (</>), (<$>),
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 import qualified "containers" Data.Tree as R
 
-import Logic.Judge.Tableau.Specification (Ref((:=)), Guard((:|)), BaseRule((:>)))
+import Logic.Judge.Tableau.Specification (Ref((:=)))
 import Logic.Judge.Printer (Printable, pretty, prettyRecursive, phrase, seperates, list)
 import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Tableau.Specification as T
@@ -47,7 +48,7 @@ instance Printable b => Printable (Ref Int b) where
 
 
 
-instance Printable ext => Printable (T.TermsSpecification ext) where
+instance (Printable ext, Printable primitive) => Printable (T.Terms primitive ext) where
     pretty terms = case terms of
         T.Primitive s -> pretty s
         T.Union ts -> "or" `seperates` map prettyRecursive ts
@@ -56,16 +57,21 @@ instance Printable ext => Printable (T.TermsSpecification ext) where
 
 
 
-instance Printable T.TermsPrimitive where
+instance Printable T.PrimitiveStaticTerms where
     pretty source = phrase $ case source of
         T.Root -> "a root node"
         T.Assumption -> "an assumption"
-        T.Unprocessed -> "an unprocessed node on the branch"
-        T.Processed -> "a processed node on the branch"
+
+
+instance Printable T.PrimitiveDynamicTerms where
+    pretty source = case source of
+        T.Unprocessed -> phrase "an unprocessed node on the branch"
+        T.Processed -> phrase "a processed node on the branch"
+        T.Static s -> pretty s
 
 
 
-instance Printable ext => Printable (T.Constraint ext) where
+instance (Printable ext, Printable primitive) => Printable (T.Constraint primitive ext) where
 
     pretty T.None = PP.empty
     pretty constraint = styleComment $ 
@@ -75,20 +81,19 @@ instance Printable ext => Printable (T.Constraint ext) where
 
     prettyRecursive constraint = case constraint of
         T.None -> PP.empty
-        T.Occurs pattern terms -> pretty pattern <+> phrase "matches" <+> prettyRecursive terms
-        T.Bind pattern terms -> pretty pattern <+> phrase "matches" <+> prettyRecursive terms
+        T.Match pattern terms -> pretty pattern <+> phrase "matches" <+> prettyRecursive terms
         T.Choose cs -> "or alternatively" `seperates` map prettyRecursive cs
         T.Merge cs -> "while simultaneously" `seperates` map prettyRecursive cs
     
     
-instance (Printable ext) => Printable (T.RulePlain ext) where
-    pretty (name := premises :> conclusion :| constraint) =
+instance (Printable ext) => Printable (T.RuleUninstantiated ext) where
+    pretty (name := T.Rule {T.productions, T.consumptions}) =
         comment name <$$>
         comment "if the branch contains:" <$$>
-        pretty premises <$$>
+        pretty consumptions <$$>
         PP.empty <$$>
         comment "then it may be extended with:" <$$>
-        pretty (tree $ conclusion)
+        pretty (tree $ productions)
         
         where
         comment :: String -> PP.Doc

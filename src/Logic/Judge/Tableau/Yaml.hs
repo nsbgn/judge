@@ -25,7 +25,7 @@ import qualified "containers" Data.Map as M1
 import qualified "unordered-containers" Data.HashMap.Strict as M2
 
 
-import Logic.Judge.Tableau.Specification (Ref((:=)), Guard((:|)), BaseRule((:>)))
+import Logic.Judge.Tableau.Specification (Ref((:=)))
 import Logic.Judge.Parser (Parseable, parser, parse)
 import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Tableau.Specification as T
@@ -42,14 +42,14 @@ instance (F.Extension ext) => Y.FromJSON (T.TableauSystem ext) where
 
         -- | If the rule does not have a name, use the dictionary key as a
         -- name.
-        namer :: (String, Ref String a) -> Ref String a
+        namer :: (String, T.Ref String a) -> T.Ref String a
         namer (key, (name := value)) =
             if name == mempty
                 then key := value
                 else name := value
 
 
-instance (Monoid a, Y.FromJSON a, Y.FromJSON b) => Y.FromJSON (Ref a b) where
+instance {-# OVERLAPPABLE #-} (Monoid a, Y.FromJSON a, Y.FromJSON b) => Y.FromJSON (T.Ref a b) where
     parseJSON = Y.withObject "named object" $ \o -> 
         (:=) 
             <$> o .:? "name" .!= mempty
@@ -57,47 +57,45 @@ instance (Monoid a, Y.FromJSON a, Y.FromJSON b) => Y.FromJSON (Ref a b) where
 
 
 
-instance (F.Extension ext) => Y.FromJSON (T.BaseRule ext) where
+instance (F.Extension ext, Y.FromJSON primitive) => Y.FromJSON (T.Rule (T.Constraint primitive ext) ext) where
     parseJSON = Y.withObject "tableau rule" $ \o ->
-        (:>)
-            <$> o .: "if"
-            <*> o .: "then"
-
-
-instance (Y.FromJSON a, F.Extension ext) => Y.FromJSON (T.Guard a (T.Constraint ext)) where
-    parseJSON = Y.withObject "constrained tableau rule" $ \o ->
-        (:|)
-            <$> Y.parseJSON (Y.Object o) 
-            <*> (
-            (,)
-                <$> o .:? "compose" .!= T.Nondeterministic
-                <*> o .:? "where" .!= T.None
-            )
+        T.Rule
+            <$> o .:  "if"
+            <*> o .:  "then"
+            <*> o .:? "generate" .!= T.None
+            <*> o .:? "restrict" .!= T.None
+            <*> o .:? "compose" .!= T.Nondeterministic
 
 
 
-instance Y.FromJSON T.ConstraintHandler where
+instance Y.FromJSON T.Compositor where
     parseJSON = Y.withText expected $ \s -> case s of
         "nondeterministic" -> return T.Nondeterministic
         "greedy"           -> return T.Greedy
         invalid            -> Y.typeMismatch expected (Y.String invalid)
 
-        where expected = "instance combinator"
+        where expected = "instance compositor"
 
 
 
-instance Y.FromJSON T.TermsPrimitive where
+instance Y.FromJSON T.PrimitiveStaticTerms where
     parseJSON = Y.withText expected $ \s -> case s of
         "root"        -> return T.Root
         "assumptions" -> return T.Assumption
-        "processed"   -> return T.Processed
-        "unprocessed" -> return T.Unprocessed
         invalid       -> Y.typeMismatch expected (Y.String invalid)
 
-        where expected = "formula source"
+        where expected = "term"
 
 
-instance (F.Extension ext) => Y.FromJSON (T.TermsSpecification ext) where
+instance Y.FromJSON T.PrimitiveDynamicTerms where
+    parseJSON = Y.withText "term" $ \s -> case s of
+        "processed"   -> return T.Processed
+        "unprocessed" -> return T.Unprocessed
+        other         -> T.Static <$> Y.parseJSON (Y.String s)
+
+
+
+instance (F.Extension ext, Y.FromJSON primitive) => Y.FromJSON (T.Terms primitive ext) where
     parseJSON (Y.Object o) 
          =  T.Union        <$> o .: "union" 
         <|> T.Intersection <$> o .: "intersection" 
@@ -142,12 +140,11 @@ instance (F.Extension ext) => Y.FromJSON ([F.Term ext] -> [F.Term ext]) where
     parseJSON invalid = Y.typeMismatch "transformation function" invalid
 
 
-instance (F.Extension ext) => Y.FromJSON (T.Constraint ext) where
+instance (F.Extension ext, Y.FromJSON primitive) => Y.FromJSON (T.Constraint primitive ext) where
     parseJSON = Y.withObject "constraint" $ \o ->
             T.Choose <$> o .: "or"
         <|> T.Merge  <$> o .: "and"
-        <|> T.Occurs <$> o .: "occurs" <*> Y.parseJSON (Y.Object o)
-        <|> T.Bind   <$> o .: "bind" <*> Y.parseJSON (Y.Object o)
+        <|> T.Match  <$> o .: "match" <*> Y.parseJSON (Y.Object o)
         <|> fail "expected constraint"
 
 
