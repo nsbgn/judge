@@ -87,7 +87,7 @@ instance (Printable ext, Printable primitive) => Printable (T.Constraint primiti
     
     
 instance (Printable ext) => Printable (T.RuleUninstantiated ext) where
-    pretty (name := T.Rule {T.productions, T.consumptions}) =
+    pretty T.Rule {T.name, T.productions, T.consumptions} =
         comment name <$$>
         comment "if the branch contains:" <$$>
         pretty consumptions <$$>
@@ -112,7 +112,7 @@ instance (Printable ext) => Printable (T.RuleUninstantiated ext) where
 
 instance (Printable ext) => Printable (T.TableauSystem ext) where
     pretty tableau = 
-        (styleTitle . PP.text $ "Tableau for logic " ++ T.name tableau) <$$>
+        (styleTitle . PP.text $ "Tableau for logic " ++ T.title tableau) <$$>
         PP.empty <$$>
         PP.indent 2 (
             subtitle "Assumptions" <$$> 

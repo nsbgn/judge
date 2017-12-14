@@ -128,9 +128,9 @@ closes new old assumptions =
 concreteProductions :: (F.Extension ext, Monad m) 
                     => Match ext 
                     -> m [[F.Marked (F.Formula ext)]]
-concreteProductions (Match {assignment, rule=(n := ρ)}) = 
+concreteProductions (Match {assignment, rule}) = 
     let mapM2 = mapM . mapM
-    in Fσ.substitute assignment `mapM2` TS.productions ρ
+    in Fσ.substitute assignment `mapM2` TS.productions rule
 
 
 
@@ -153,7 +153,7 @@ matchRule :: forall ext . (F.Extension ext)
           => Branch ext
           -> TS.RuleInstantiated ext
           -> [Match ext]
-matchRule π (name := ρ@(TS.Rule {TS.consumptions, TS.generator})) =
+matchRule π ρ@TS.Rule {TS.consumptions, TS.generator} =
     foldM match μ₀ consumptions
     
     where
@@ -164,7 +164,7 @@ matchRule π (name := ρ@(TS.Rule {TS.consumptions, TS.generator})) =
         { matched = mempty
         , assignment = mempty
         , remainder = actives π
-        , rule = name := ρ
+        , rule = ρ
         , generator' = return generator
         }
 
@@ -183,11 +183,6 @@ matchRule π (name := ρ@(TS.Rule {TS.consumptions, TS.generator})) =
    
 
 
-{-
-matchRule = undefined
-
--}
-
 -- | Greedily pick a rule and consumptions to work with. Obtain all possible
 -- instantiations of said rule.
 matches :: forall ext . (F.Extension ext)
@@ -196,7 +191,7 @@ matches :: forall ext . (F.Extension ext)
         -> [Match ext]
 matches κ@(TableauSettings {rulesαβ}) π = join $ do 
     μs <- instantiations
-    let (n := TS.Rule {TS.compositor}) = rule $ head μs 
+    let TS.Rule {TS.compositor} = rule $ head μs 
     case compositor of
         TS.Greedy -> greedy <$> return μs
         TS.Nondeterministic -> return μs
@@ -217,7 +212,7 @@ matches κ@(TableauSettings {rulesαβ}) π = join $ do
     instantiate μ@(Match {assignment, generator', rule}) = do
         σF <- maybe [] L.focus generator'
         σ <- Fσ.merge assignment (L.current σF)
-        let (n := ρ@(TS.Rule {TS.constraint})) = rule
+        let (ρ@TS.Rule {TS.constraint}) = rule
         guard (TS.respects (concretiser (dynamic κ π)) σ constraint)
         return μ 
             { assignment = σ
@@ -300,7 +295,7 @@ subtableau κ = greedy . subtableaux
       = case lastMatch of
             Nothing -> (R.Node . Root . L.current . fromJust $ actives) <$> expand π
             Just μ@(Match {matched, rule}) -> 
-                let ref = (TS.reference rule, map TS.reference matched) 
+                let ref = (TS.name rule, map TS.reference matched) 
                 in R.Node (App ref lastFormulas) <$> case closed π of
                     True  -> return [R.Node Closure []]
                     False -> expand π
@@ -404,7 +399,7 @@ initial system goal = (initκ, initπ)
     -- αβ-rules (which do). The former may be applied only once per branch,
     -- while the latter can be applied any number of times. 
     (rulesε, rulesαβ) = 
-          partition (null . TS.consumptions . TS.value) 
+          partition (null . TS.consumptions) 
         . mapMaybe (TS.instantiateRule (concretiser (static initκ)))
         . TS.rules 
         $ system

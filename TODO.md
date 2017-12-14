@@ -2,17 +2,6 @@
 title: TODO
 ---
 
-
-Include names in the rules directly                                    {#name}
-===============================================================================
-
-Naming rules is done through the `Ref String` datatype. However, this 
-introduces a lot of pattern matching and clutters the code. Instead, include a 
-`name` field in the rule directly. I think readability is more important than 
-generality in this case. 
-
-
-
 Composing rules with multiple instantiations                        {#compose}
 ===============================================================================
 
@@ -270,13 +259,16 @@ boolean switch in the YAML.
 
 
 
-Code practices: Failure                                           {#monadfail}
+Code practices                                                    {#practices}
 ===============================================================================
 
-The "fail" function of Monads is used quite often, because it's a natural way 
-to model failure for the List and Maybe monads. However, it is discouraged 
-because some monads throw errors on fail. Use a `MonadFail` class constraint 
-instead (see `Control.Monad.Fail`)?
+- The "fail" function of Monads is used quite often, because it's a natural 
+  way to model failure for the List and Maybe monads. However, it is 
+  discouraged because some monads throw errors on fail. Use a `MonadFail` 
+  class constraint instead (see `Control.Monad.Fail`)?
+
+- 'TableauSettings' should perhaps not be passed as a parameter. Rather, it is 
+  a state in a 'Reader' monad.
 
 
 

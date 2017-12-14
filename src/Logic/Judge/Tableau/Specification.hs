@@ -26,7 +26,7 @@ import qualified Logic.Judge.Formula.Substitution as Fσ
 type Pattern ext = F.Ambiguous (F.Term ext)
 
 data TableauSystem ext = TableauSystem
-    { name          :: String
+    { title         :: String
     , rules         :: [RuleUninstantiated ext]
     , assumptions   :: [F.Formula ext]
     }
@@ -39,7 +39,9 @@ infixr 7 :=
 -- | The base rule can represent both instantiated and uninstantiated tableau
 -- rules.
 data Rule generator ext = Rule 
-    { consumptions :: [ F.Marked (F.Formula ext) ]
+    { name :: String
+    -- ^ Identifier by which the rule shall be known.
+    , consumptions :: [ F.Marked (F.Formula ext) ]
     -- ^ The consumptions (also: premises, antecedents, conditions) are
     -- formulas that are to be present on the branch before the rule may be
     -- applied.
@@ -81,11 +83,11 @@ data Compositor = Greedy | Nondeterministic
 
 
 -- | An uninstantiated rule.
-type RuleUninstantiated ext = Ref String (Rule (Constraint PrimitiveStaticTerms ext) ext)
+type RuleUninstantiated ext = Rule (Constraint PrimitiveStaticTerms ext) ext
 
 
 -- | An instantiated tableau rule.
-type RuleInstantiated ext = Ref String (Rule (L.PointedList (Fσ.Substitution ext)) ext)
+type RuleInstantiated ext = Rule (L.PointedList (Fσ.Substitution ext)) ext
 
 
 -- | Represent sets of primitive source formulas to be used in constraints. 
@@ -179,9 +181,9 @@ instantiateRule :: forall ext . (F.Extension ext)
                  => (StaticTerms ext -> [F.Term ext])
                  -> RuleUninstantiated ext
                  -> Maybe (RuleInstantiated ext)
-instantiateRule concretise (n := ρ@Rule {generator}) = 
+instantiateRule concretise ρ@Rule {generator} = 
     fmap 
-        (\generator' -> n := ρ { generator = generator' })
+        (\g -> ρ { generator = g })
         (L.fromList . assign $ generator)
 
     where

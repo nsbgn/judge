@@ -8,7 +8,7 @@ Stability   : experimental
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PackageImports #-}
 module Logic.Judge.Tableau.Yaml where
 
@@ -42,11 +42,11 @@ instance (F.Extension ext) => Y.FromJSON (T.TableauSystem ext) where
 
         -- | If the rule does not have a name, use the dictionary key as a
         -- name.
-        namer :: (String, T.Ref String a) -> T.Ref String a
-        namer (key, (name := value)) =
-            if name == mempty
-                then key := value
-                else name := value
+        namer :: (String, T.RuleUninstantiated ext) -> T.RuleUninstantiated ext
+        namer (key, ρ@T.Rule {T.name}) =
+            if name == ""
+                then ρ { T.name = key }
+                else ρ
 
 
 instance {-# OVERLAPPABLE #-} (Monoid a, Y.FromJSON a, Y.FromJSON b) => Y.FromJSON (T.Ref a b) where
@@ -60,7 +60,8 @@ instance {-# OVERLAPPABLE #-} (Monoid a, Y.FromJSON a, Y.FromJSON b) => Y.FromJS
 instance (F.Extension ext, Y.FromJSON primitive) => Y.FromJSON (T.Rule (T.Constraint primitive ext) ext) where
     parseJSON = Y.withObject "tableau rule" $ \o ->
         T.Rule
-            <$> o .:  "if"
+            <$> o .:? "name" .!= ""
+            <*> o .:  "if"
             <*> o .:  "then"
             <*> o .:? "generate" .!= T.None
             <*> o .:? "restrict" .!= T.None

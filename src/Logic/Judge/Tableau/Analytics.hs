@@ -24,6 +24,6 @@ analyseSystem system goal = do
 
 
 analyseRule :: TS.RuleInstantiated ext -> IO ()
-analyseRule (name := TS.Rule {TS.generator}) = do
+analyseRule (TS.Rule {TS.name, TS.generator}) = do
     putStr $ name ++ ": "
     putStrLn $ (show . length $ generator)
