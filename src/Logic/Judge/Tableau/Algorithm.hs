@@ -38,10 +38,17 @@ type BranchFormula ext = Ref Int (F.Marked (F.Formula ext))
 
 -- | A proof in a tableau system is a rose tree, containing formulas and the
 -- rule applications used to obtain them.
-type Tableau ext = R.Tree (TableauNode ext)
-data TableauNode ext
-    = App (String, [Int]) [BranchFormula ext]
-    | Root (BranchFormula ext)
+--type Tableau ext = R.Tree (TableauNode ext)
+--data TableauNode ext
+--    = App (String, [Int]) [BranchFormula ext]
+--    | Root (BranchFormula ext)
+--    | Closure
+
+-- | A proof in a tableau system is a rose tree, containing formulas and the
+-- rule applications used to obtain them.
+data Tableau ext
+    = Node [BranchFormula ext] (Tableau ext)
+    | Application String [Int] [Tableau ext]
     | Closure
 
 
@@ -238,7 +245,7 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
     consumers = do
         -- Greedily pick a rule and formulas on the branch, and, depending on
         -- the rule, nondeterministically pick an instance of that rule.
-        μ@(Match {matched, remainder, assignment, rule}) <- matchFirstRule κ π
+        μ@(Match {matched, remainder, assignment, rule}) <- matchFirst κ π
         -- Instantiate and unwrap the productions of the match we picked
         disjunction <- Fσ.substitute2 assignment (TS.productions rule)
         -- Present the newly created branches
@@ -285,25 +292,22 @@ subtableau κ = greedy . subtableaux
 
     where 
 
-    -- | Obtain all possible subtableaux under a branch.
-    subtableaux :: Branch ext -> [Tableau ext]
-    subtableaux π@(Branch {lastFormulas, lastMatch, actives}) 
-      = case lastMatch of
-            Nothing -> (R.Node . Root . L.current . fromJust $ actives) <$> expand π
-            Just μ@(Match {matched, rule}) -> 
-                let ref = (TS.name rule, map TS.reference matched) 
-                in R.Node (App ref lastFormulas) <$> case closed π of
-                    True  -> return [R.Node Closure []]
-                    False -> expand π
-
     -- | Nondeterministically and recursively expand the given branch into its 
     -- subtableaux.
-    expand :: Branch ext -> [[Tableau ext]]
-    expand π = do
-        -- Pick a possible set of branch expansions
-        πs <- expand1 κ π
-        -- Recursively expand those branch expansions, too
-        mapM subtableaux πs
+    subtableaux :: Branch ext -> [Tableau ext]
+    subtableaux π@(Branch {lastFormulas}) = Node lastFormulas <$> case closed π of
+        True -> return Closure
+        False -> do
+            -- Pick a possible set of branch expansions
+            πs <- expand1 κ π
+            -- Determine which rule led to the expansions
+            -- TODO: expand1 should make a branchset that contains these
+            -- attributes — not just a list of branches.
+            let Match {matched, rule} = fromJust . lastMatch . head $ πs 
+            let name = TS.name rule 
+            let refs = map TS.reference matched
+            -- Recursively expand those branch expansions, too
+            Application name refs <$> mapM subtableaux πs
 
 
 
@@ -319,24 +323,25 @@ renumber = flip ST.evalState (0,[]) . renumber'
     -- traversed 'up' a branch. We also remember the translation table for the
     -- current branch. The latter could probably be done implicitly, but this
     -- is easier to grasp.
-
     renumber' :: Tableau ext -> ST.State (Int, [(Int,Int)]) (Tableau ext)
-    renumber' (R.Node ν children) = do
-        proof <- R.Node <$> node ν <*> mapM renumber' children
-        ST.modify (\(δ,tt) -> (δ+1,tt)) 
-        return proof
-     
-    node :: TableauNode ext -> ST.State (Int, [(Int,Int)]) (TableauNode ext)
-    node ν@(Root (i := _)) = ST.put (0,[(i,i)]) >> return ν
-    node ν@(Closure) = ST.modify (\(δ,tt) -> (δ-1,tail tt)) >> return ν
-    node ν@(App (r,ids) φs) = do
-        (δ, tt) <- ST.get
-        φs' <- forM φs $ \(i := φ) -> do
-            let j = i + δ
-            ST.modify (\(δ, tt) -> (δ, (i,j):tt))
-            return $ j := φ
-        ids' <- forM ids $ return . fromJust . flip lookup tt
-        return $ App (r, ids') φs'
+    renumber' tableau = do
+        θ' <- case tableau of
+            Closure -> do
+                ST.modify (\(δ, assoc) -> (δ-1, tail assoc))
+                return tableau
+            Node φs θ -> do
+                φs' <- forM φs $ \(i := φ) -> do
+                    (δ, assoc) <- ST.get
+                    let j = i + δ
+                    ST.put (δ, (i,j):assoc)
+                    return $ j := φ
+                Node φs' <$> renumber' θ
+            Application name refs θs -> do
+                (δ, assoc) <- ST.get
+                refs' <- forM refs $ return . fromJust . flip lookup assoc
+                Application name refs' <$> mapM renumber' θs
+        ST.modify (\(δ, assoc) -> (δ+1, assoc))
+        return θ'
 
 
 
@@ -377,7 +382,7 @@ initial system goal = (initκ, initπ)
         , rulesA = L.fromList rulesA
         , closed = closes root root (TS.assumptions system)
         , lastMatch = Nothing
-        , lastFormulas = []
+        , lastFormulas = L.toList root
         , counter = 1
         }
 

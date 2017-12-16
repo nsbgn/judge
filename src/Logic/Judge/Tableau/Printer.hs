@@ -30,15 +30,19 @@ styleComment = PP.cyan
 styleAnnotation = PP.magenta
 
 
-instance Printable ext => Printable (TA.TableauNode ext) where
-    pretty (TA.Root node) = pretty node
-    pretty (TA.Closure) = pretty False
-    pretty (TA.App (rule, ids) nodes) = ppRule <+> ppFormulas
-   
+instance Printable ext => Printable (TA.Tableau ext) where
+    pretty θ = case θ of
+        TA.Closure -> pretty False
+        TA.Node φs subθ -> PP.vsep (map pretty φs) <$> pretty subθ
+        TA.Application name refs θs -> branch
+            (styleAnnotation $ pretty name <> list refs)
+            (map pretty θs)
+    
         where
-
-        ppFormulas = list nodes
-        ppRule = styleAnnotation $ pretty rule <> list ids <> PP.char ':'
+        branch :: PP.Doc -> [PP.Doc] -> PP.Doc
+        branch rule children = PP.vsep $ map (\child ->
+            PP.char '╷' <+> rule <$> 
+            PP.text "└── " <> PP.nest 4 child) children
 
 
 

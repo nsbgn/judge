@@ -10,6 +10,7 @@ Stability   : experimental
 module Logic.Judge.PointedList 
     ( module L
     , asList
+    , toList
     , current
     , insertAll
     , focus
@@ -23,6 +24,11 @@ import "base" Data.Foldable (toList)
 -- | Turn a 'PointedList' into a non-pointed list.
 asList :: L.PointedList a -> [a]
 asList (L.PointedList prefix x postfix) = x : prefix ++ postfix
+
+
+-- | Turn a possibly empty 'PointedList' into a normal list, preserving order.
+--toList :: Maybe (L.PointedList a) -> [a]
+--toList = maybe [] (foldr (:) [])
 
 
 -- | Get the current focus of a 'PointedList'.
