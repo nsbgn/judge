@@ -5,8 +5,12 @@ P & ~P
 P | ~P
 x : A -> c*x : (B -> A)
 x : A -> x*c : (B -> A)
-r+s:(A->A)
+x : A -> c*(x+x1) : (B->A)
 ' |\
-runhaskell -i'src' app/Main.hs 'logic/J0-proposal.yml' -v -a 'c:(A->(B->A))'
+runhaskell -i'src' app/Main.hs \
+    -a 'c:(A->(B->A))'\
+    -f LaTeX \
+    -o tests.tex \
+    'logic/J0-proposal.yml'
 
-runhaskell -i'src' app/Main.hs 'logic/J0-proposal.yml' -v -a 'd:A' -g 'c*d:(B->A)' -g 'd*c:(B->A)'
+xelatex tests.tex

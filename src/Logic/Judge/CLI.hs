@@ -23,9 +23,17 @@ data Arguments = Arguments
     { verbose      :: Bool
     , _assumptions :: [String]
     , _goals       :: [String]
-    , infile       :: String
     , outfile      :: Maybe String
+    , format       :: Format
+    , infile       :: String
     }
+
+
+data Format 
+    = LaTeX 
+    | Plain 
+    deriving (Show, Read)
+
 
 arguments :: IO Arguments
 arguments = O.execParser prog 
@@ -64,16 +72,22 @@ arguments = O.execParser prog
                        \input if none are given."
             )
             )
-        <*> ( O.argument O.str (O.metavar "LOGIC") )
         <*> ( O.optional $ O.strOption
             (   O.short 'o' <>  O.long "output" <> O.metavar "PATH"
             <>  O.help "Output file. Defaults to standard output."
             )
             )
+        <*> ( O.option O.auto
+            (   O.short 'f' <>  O.long "format" <> O.metavar "FMT"
+            <>  O.value Plain <> O.showDefault
+            <>  O.help "Output format."
+            )
+            )
+        <*> ( O.argument O.str (O.metavar "LOGIC") )
 
     description = "Decides whether given logical formulas are provable in \n\
                   \some logical system. Takes a YAML or JSON file as input. \n\
-                  \Refer to the manual for specification."
+                  \Refer to my Master's thesis for specification."
 
 
 -- | Read additional assumptions. As obtained from command line arguments.

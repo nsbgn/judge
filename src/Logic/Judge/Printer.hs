@@ -17,6 +17,8 @@ import "base" GHC.IO.Handle.FD (stdout)
 import "text" Data.Text (Text, pack, unpack)
 import "terminal-size" System.Console.Terminal.Size (size, width)
 import "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen ((<>), (<+>), (</>), (<$>), (<$$>), (<//>))
+import "bytestring" Data.ByteString (hPut)
+import qualified "utf8-string" Data.ByteString.UTF8 as UTF8
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 import qualified "containers" Data.Tree as R
 import qualified "containers" Data.Map as M1
@@ -42,21 +44,35 @@ class Printable a where
     prettyRecursive = pretty
 
 
--- | Print a printable to stdout.
-prettyprint :: Printable a => a -> IO ()
-prettyprint = prettyprintH stdout
+-- | Write a document to some file handle.
+write :: Handle -> PP.Doc -> IO ()
+write fd = 
+    if fd == stdout
+        then prettyprint fd
+        else export fd 
 
 
--- | Print a printable to some file handle.
-prettyprintH :: Printable a => Handle -> a -> IO ()
-prettyprintH fd x = do
+-- | Print ANSI-colorised document to file handle.
+prettyprint :: Handle -> PP.Doc -> IO ()
+prettyprint fd doc = do
     columns <- maybe 79 width `fmap` size
     PP.displayIO fd 
         . (PP.renderPretty 1.0 columns) 
-        . (PP.<$$> PP.plain PP.empty) 
+        . (<> PP.line)
         . PP.fill columns
-        . pretty 
-        $ x
+        $ doc
+
+
+-- | Print UTF-8 encoded, plain document to file handle.
+export :: Handle -> PP.Doc -> IO ()
+export fd doc = hPut fd 
+        . UTF8.fromString
+        . flip PP.displayS "" 
+        . (PP.renderPretty 1.0 255) 
+        . PP.plain
+        . (<> PP.line)
+        $ doc
+
 
 instance {-# OVERLAPPABLE #-} Printable a => Show a where
     show = show . pretty
@@ -86,7 +102,9 @@ instance (Printable a, Printable b) => Printable (Either a b) where
         left = (<$$>) (PP.bold . PP.red . PP.text $ "Failure:") . PP.indent 4
 
 instance Printable a => Printable (Maybe a) where
-    pretty = maybe PP.empty pretty
+    pretty x = maybe 
+        (PP.red $ PP.string "Failed to satisfy goal.") 
+        ((PP.green (PP.string "Success:") <$>) . pretty) x <> PP.line
 
 instance (Printable a, Printable b) => Printable (a,b) where
     pretty (x, y) = 
