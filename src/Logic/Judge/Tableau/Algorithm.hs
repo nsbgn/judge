@@ -38,14 +38,6 @@ type BranchFormula ext = Ref Int (F.Marked (F.Formula ext))
 
 -- | A proof in a tableau system is a rose tree, containing formulas and the
 -- rule applications used to obtain them.
---type Tableau ext = R.Tree (TableauNode ext)
---data TableauNode ext
---    = App (String, [Int]) [BranchFormula ext]
---    | Root (BranchFormula ext)
---    | Closure
-
--- | A proof in a tableau system is a rose tree, containing formulas and the
--- rule applications used to obtain them.
 data Tableau ext
     = Node [BranchFormula ext] (Tableau ext)
     | Application String [Int] [Tableau ext]
@@ -78,9 +70,7 @@ data Branch ext = Branch
     -- ^ Which formulas have been processed on the branch?
     , closed :: Bool
     -- ^ Is this branch closed?
-    , lastMatch :: Maybe (Match ext)
-    -- ^ What was the last match to be applied to this branch?
-    , lastFormulas :: [BranchFormula ext]
+    , new :: [BranchFormula ext]
     -- ^ Which formulas were the last to be introduced?
     , counter :: Int
     -- ^ What is the next identifier never to have occurred on the branch before?
@@ -230,7 +220,7 @@ matchFirst κ@(TableauSettings {rulesC}) π = join $ do
 expand1 :: forall ext . (F.Extension ext)
         => TableauSettings ext
         -> Branch ext
-        -> [[Branch ext]]
+        -> [(Match ext, [Branch ext])]
 expand1 κ@(TableauSettings {rulesC, assumptions})
         π@(Branch {rulesA, inactives, counter}) =
         if null consumers
@@ -241,7 +231,7 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
 
     -- | All instances of a greedily picked rule for expanding a branch using
     -- a consumer rule.
-    consumers :: [[Branch ext]]
+    consumers :: [(Match ext, [Branch ext])]
     consumers = do
         -- Greedily pick a rule and formulas on the branch, and, depending on
         -- the rule, nondeterministically pick an instance of that rule.
@@ -249,11 +239,10 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
         -- Instantiate and unwrap the productions of the match we picked
         disjunction <- Fσ.substitute2 assignment (TS.productions rule)
         -- Present the newly created branches
-        return $ 
+        return $ (,) μ
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives
-                , lastMatch = return μ
-                , lastFormulas = conjunction
+                , new = conjunction
                 , closed = closes conjunction (formulas π) assumptions
                 , counter = counter + length conjunction
                 }
@@ -261,18 +250,17 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
             ]
     
     -- | An ascetic rule must always be greedy.
-    ascetics :: [[Branch ext]]
+    ascetics :: [(Match ext, [Branch ext])]
     ascetics = greedy $ do
         ρF <- maybe [] L.focus rulesA
         let ρ = L.current ρF
         μ@(Match {matched, remainder, assignment, rule, rule'}) <- 
             matchRule π ρ >>= instantiateMatch κ π
         disjunction <- Fσ.substitute2 assignment (TS.productions rule)
-        return $ 
+        return $ (,) μ
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives
-                , lastMatch = return μ
-                , lastFormulas = conjunction
+                , new = conjunction
                 , closed = closes conjunction (formulas π) assumptions
                 , counter = counter + length conjunction
                 , rulesA = L.update ρF rule'
@@ -295,15 +283,12 @@ subtableau κ = greedy . subtableaux
     -- | Nondeterministically and recursively expand the given branch into its 
     -- subtableaux.
     subtableaux :: Branch ext -> [Tableau ext]
-    subtableaux π@(Branch {lastFormulas}) = Node lastFormulas <$> case closed π of
+    subtableaux π@(Branch {new}) = Node new <$> case closed π of
         True -> return Closure
         False -> do
             -- Pick a possible set of branch expansions
-            πs <- expand1 κ π
+            (Match {matched, rule}, πs) <- expand1 κ π
             -- Determine which rule led to the expansions
-            -- TODO: expand1 should make a branchset that contains these
-            -- attributes — not just a list of branches.
-            let Match {matched, rule} = fromJust . lastMatch . head $ πs 
             let name = TS.name rule 
             let refs = map TS.reference matched
             -- Recursively expand those branch expansions, too
@@ -366,33 +351,28 @@ initial system goal = (initκ, initπ)
 
     where
 
-    -- Initial settings
+    -- | Initial settings
     initκ :: TableauSettings ext
     initκ = TableauSettings
         { rulesC = rulesC
-        , root = φ
+        , root = TS.value $ L.current root
         , assumptions = TS.assumptions system
         }
 
-    -- Initial branch
+    -- | Initial branch
     initπ :: Branch ext
     initπ = Branch 
         { actives = return root
         , inactives = []
         , rulesA = L.fromList rulesA
         , closed = closes root root (TS.assumptions system)
-        , lastMatch = Nothing
-        , lastFormulas = L.toList root
+        , new = L.toList root
         , counter = 1
         }
 
-    -- | Root of the tableau
-    φ :: F.Marked (F.Formula ext)
-    φ = F.Marked ["F"] (F.simplify goal)
-
     -- | Root of the tableau.
     root :: L.PointedList (BranchFormula ext)
-    root = L.singleton (0 := φ)
+    root = L.singleton (0 := F.Marked ["F"] (F.simplify goal))
 
     -- | Rules are seperated into ascetic rules and consumer rules. To preserve
     -- termination, the former may be applied only once per branch, while the
