@@ -113,6 +113,7 @@ closes :: (Eq ext, Traversable t1, Traversable t2, Traversable t3)
        -> t3 (F.Formula ext) 
        -> Bool
 closes new old assumptions = 
+    fmap strip new `F.contradict` fmap strip new ||
     fmap strip new `F.contradict` assumptions ||
     fmap strip new `F.contradict` fmap strip old
 

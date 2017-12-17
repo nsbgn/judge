@@ -19,8 +19,7 @@ rules:
         if:
             - "[F] T+S:A"
         then: 
-            - ["[F] T:A"]
-            - ["[F] S:A"]
+            - ["[F] T:A", "[F] S:A"]
     "F·": 
         if:
             - "[F] (S * T) : B"
@@ -31,7 +30,5 @@ rules:
             match: "A → B"
             with: [subterms, formulas]
             in:
-                union:
-                    - root
-                    - assumptions
+                union: [root, assumptions]
 assumptions: []

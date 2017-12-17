@@ -12,7 +12,6 @@ build-type:             Simple
 extra-source-files:     README.md
                       , logic/J0-proposal.yml
                       , logic/J0-naive.yml
-                      , logic/J0-wrong.yml
 
 cabal-version:          >=1.10
 
@@ -22,6 +21,7 @@ library
                       , Logic.Judge.PointedList
                       , Logic.Judge.Parser
                       , Logic.Judge.Printer
+                      , Logic.Judge.LaTeX
                       , Logic.Judge.Formula
                       , Logic.Judge.Formula.Datastructure
                       , Logic.Judge.Formula.Parser
@@ -46,6 +46,7 @@ library
                       , ansi-wl-pprint
                       , optparse-applicative
                       , terminal-size
+                      , utf8-string
     default-language:   Haskell2010
 
 
