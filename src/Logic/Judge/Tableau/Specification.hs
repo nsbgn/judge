@@ -13,8 +13,9 @@ module Logic.Judge.Tableau.Specification where
 
 import "base" Debug.Trace (trace, traceShow, traceM, traceShowM)
 
+import "base" Data.Function (on)
 import "base" Data.Maybe (mapMaybe, catMaybes)
-import "base" Data.List (nub, intersect, (\\))
+import "base" Data.List (nub, intersect, (\\), sortBy)
 import "base" Control.Monad (foldM, guard)
 import "transformers" Control.Monad.Trans.State.Lazy (StateT(StateT), execStateT, get, put)
 import qualified "containers" Data.Map as M
@@ -172,9 +173,8 @@ respects concretise σ ι = case ι of
 
 -- | Instantiate a rule. Instantiation entails the following:
 --
--- 1. Sort the order of its premises in decreasing order of size. This makes
--- sure that the matching algorithm will work efficiently later on. (TODO)
--- 2. Generating the variable assignments of its generative constraints.
+-- 1. Sort the order of its premises in decreasing order of size. 
+-- 2. Generating the variable assignments as specified by the generator.
 --
 -- Note that a rule is useless if there is not a single appropriate assignment 
 -- for the generator.
@@ -182,12 +182,20 @@ instantiateRule :: forall ext . (F.Extension ext)
                  => (StaticTerms ext -> [F.Term ext])
                  -> RuleUninstantiated ext
                  -> Maybe (RuleInstantiated ext)
-instantiateRule concretise ρ@Rule {generator} = 
+instantiateRule concretise ρ@Rule {generator, consumptions} = 
     fmap 
-        (\instances -> ρ { generator = instances })
+        (\instances -> ρ { generator = instances 
+                         , consumptions = ordered consumptions })
         (L.fromList . assign $ generator)
 
     where
+
+    -- | The consumptions should be sorted in order of decreasing complexity,
+    -- since matching the most complex formula first (in `matchRule`) decreases
+    -- the number of subsequent matches the most and will thus be more
+    -- efficient.
+    ordered :: [F.Marked (F.Formula ext)] -> [F.Marked (F.Formula ext)]
+    ordered = reverse . sortBy (compare `on` F.size)
 
     -- | Turn a specification of a generator into an actual set of possible
     -- assignments.

@@ -52,18 +52,6 @@ taken into account?
 
 
 
-Premise sorting                                             {#premise-sorting}
-===============================================================================
-
-The premises of a rule should be sorted by complexity; we wish to match the 
-most complex premise first, since it will place the most constraints on the 
-rest of the premises. This should be an easy matter of `sort (compare \`on\` 
-rank)`.
-
-#priority:high
-
-
-
 Composing rules with multiple instantiations                        {#compose}
 ===============================================================================
 

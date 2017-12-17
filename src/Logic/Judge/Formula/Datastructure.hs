@@ -203,14 +203,6 @@ class (Subterm ext) term where
     -- duplicates.
     subterms :: term -> [Term ext]
 
-{-
-    -- | Return the nesting depth of the term.
-    depth :: term -> Int
-
-    -- | Return the size of the term.
-    size :: term -> Int
--}
-
 instance Subterm ext ext => Subterm ext (Term ext) where
     subterms (Formula f) = subterms f
     subterms (Extension e) = subterms e
@@ -238,6 +230,7 @@ instance Subterm Justification Justification where
         t@(Sum s u)           -> Extension t:subterms s ++ subterms u
 
 
+
 -- TODO: Along with 'subterms', this should be a 'set' so that we don't get
 -- duplicates
 class HasVariables term where
@@ -255,6 +248,8 @@ class HasVariables term where
     isAtomary :: term -> Bool
     isAtomary t = isConstant t || isVariable t
 
+    -- | Return the number of operators in the term.
+    size :: term -> Int
 
 
 instance HasVariables ext => HasVariables (Term ext) where
@@ -270,6 +265,9 @@ instance HasVariables ext => HasVariables (Term ext) where
     isConstant (Extension e) = isConstant e
     isConstant (MarkedFormula f) = False
 
+    size (Formula f) = size f
+    size (Extension e) = size e
+    size (MarkedFormula f) = size f
 
 instance HasVariables ext => HasVariables (Ambiguous (Term ext)) where
     variables (Ambiguous terms) = terms >>= variables
@@ -278,6 +276,8 @@ instance HasVariables ext => HasVariables (Ambiguous (Term ext)) where
 
     isConstant (Ambiguous terms) = any isConstant terms
 
+    size (Ambiguous []) = 0
+    size (Ambiguous (t:_)) = size t
 
 instance HasVariables term => HasVariables (Marked term) where
     variables (Marked _ f) = variables f
@@ -285,6 +285,8 @@ instance HasVariables term => HasVariables (Marked term) where
     isVariable (Marked _ f) = isVariable f
 
     isConstant (Marked _ f) = isConstant f
+
+    size (Marked m f) = length m + size f
 
 instance HasVariables ext => HasVariables (Formula ext) where
     variables term = case term of
@@ -299,6 +301,11 @@ instance HasVariables ext => HasVariables (Formula ext) where
     isConstant (Constant _) = True
     isConstant _ = False
 
+    size term = case term of
+        Implication a b -> 1 + size a + size b
+        Extend a b -> 1 + size a + size b
+        _ -> 0
+
 instance HasVariables Justification where
     variables term = case term of
         ProofVariable var -> [var]
@@ -312,3 +319,9 @@ instance HasVariables Justification where
 
     isConstant (ProofConstant _) = True
     isConstant _ = False
+
+    size term = case term of
+        ProofChecker s -> 1 + size s
+        Application a b -> 1 + size a + size b
+        Sum a b -> 1 + size a + size b
+        _ -> 0
