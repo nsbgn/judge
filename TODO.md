@@ -3,13 +3,6 @@ title: TODO
 ---
 
 
-Consolidate versions                                                  {#cabal}
-===============================================================================
-
-Consolidate the versions of dependencies in the cabal file.
-
-
-
 Clean up files                                                         {#lint}
 ===============================================================================
 
@@ -183,6 +176,15 @@ A call could be `judge -o json -s J0.yml -g 'a & b' | clerk`.
 
 
 
+Old TeX output                                                          {#tex}
+===============================================================================
+
+LaTeX output must be processed by XeTeX, since it uses Unicode symbols. Using 
+[texmath](https://hackage.haskell.org/package/texmath-0.9.4.1), it can be more 
+generally usable.
+
+
+
 Testing                                                             {#testing}
 ===============================================================================
 
@@ -210,7 +212,6 @@ Suggested checks (work-in-progress):
   of variables in the productions.
 - Every bound variable must be used in the consequent, otherwise they are 
   helper variables and should be eliminated in the final assignment.
-- Warn if a `bind` constraint is used on variables that were already bound.
 - Set a `--maximum-depth n` argument to prevent the proof search going on for 
   too long...
 
@@ -258,7 +259,11 @@ Code practices                                                    {#practices}
 - 'TableauSettings' should perhaps not be passed as a parameter. Rather, it is 
   a state in a 'Reader' monad.
 
+- I don't need both `mtl` and `transformers`. Choose one.
 
+- It is probably possible to refactor the patterning code; it's not really 
+  necessary to carry a state context over the Maybe monad, since the state 
+  *is* the result of the computation.
 
 Extend existing systems                                          {#extensions}
 ===============================================================================
@@ -277,15 +282,6 @@ As of now, the latter has my preference.
 
 
 
-Remove monadic structure of pattern                            {#patternmonad}
-===============================================================================
-
-It is probably possible to refactor the patterning code; it's not really 
-necessary to carry a state context over the Maybe monad, since the state *is* 
-the result of the computation.
-
-
-
 Precedence-awareness of prettyprinter                     {#prettyprecedences}
 ===============================================================================
 
@@ -294,13 +290,13 @@ be left out if the corresponding flag (`--omit-parentheses`) is set.
 
 
 
-Simplify degenerative constraints                       {#simplifyconstraints}
+Simplify constraints                                    {#simplifyconstraints}
 ===============================================================================
 
-An 'occurs' check is sometimes overkill: for example, if we simply want to 
-check whether a formula is atomary, we shouldn't have to check whether the 
-formula patterns with one of the formulas from the set of atomary formulas; we 
-should just check if it is atomary. Build simpler facilities for this.
+A `match` check is sometimes overkill: for example, if we simply want to check 
+whether a formula is atomary, we shouldn't have to check whether the formula 
+patterns with one of the formulas from the set of atomary formulas. We should 
+just check if it is atomary. Build simpler facilities for this.
 
 
 

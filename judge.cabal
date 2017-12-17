@@ -1,6 +1,6 @@
 name:                   judge
 version:                0.1.0.0
-synopsis:               Tableau-based theorem prover for justification logic.
+synopsis:               Tableau-based theorem prover.
 --description:            
 homepage:               https://github.com/slakkenhuis/judge#readme
 license:                GPL-3
@@ -33,20 +33,21 @@ library
                       , Logic.Judge.Tableau.Algorithm
                       , Logic.Judge.Tableau.Analytics
     build-depends:      base >=4.7 && <5
-                      , text
-                      , containers
-                      , unordered-containers
-                      , pointedlist
-                      , transformers
-                      , mtl
-                      , vector
-                      , attoparsec
-                      , aeson
-                      , yaml
-                      , ansi-wl-pprint
-                      , optparse-applicative
-                      , terminal-size
-                      , utf8-string
+                      , text ==1.2.2.2
+                      , bytestring >=0.10.8.1 && <0.10.8.3
+                      , containers >= 0.5.7.1 && <0.5.10.3
+                      , unordered-containers ==0.2.8.0
+                      , vector >=0.11.0.0 && <0.12.0.2
+                      , attoparsec >=0.13.1.0 && <0.13.3.0
+                      , aeson >= 0.11.3.0 && <1.2.3.1
+                      , yaml >=0.8.23 && <0.8.26
+                      , pointedlist ==0.6.1
+                      , transformers ==0.5.2.0
+                      , mtl ==2.2.1
+                      , ansi-wl-pprint >=0.6.7.3 && <0.6.8.1
+                      , optparse-applicative >=0.12.1.0 && <0.14.0.0
+                      , terminal-size ==0.3.2.1
+                      , utf8-string ==1.0.1.1
     default-language:   Haskell2010
 
 

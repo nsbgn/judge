@@ -129,11 +129,11 @@ instance (F.Extension ext) => Y.FromJSON ([F.Term ext] -> [F.Term ext]) where
 
 
 instance (F.Extension ext, Y.FromJSON primitive) => Y.FromJSON (T.Constraint primitive ext) where
-    parseJSON = Y.withObject "constraint" $ \o ->
+    parseJSON = Y.withObject "constraint or generator" $ \o ->
             T.Choose <$> o .: "or"
         <|> T.Merge  <$> o .: "and"
         <|> T.Match  <$> o .: "match" <*> Y.parseJSON (Y.Object o)
-        <|> fail "expected constraint"
+        <|> fail "expected constraint or generator"
 
 
 instance Parseable ext => Y.FromJSON (F.Ambiguous (F.Term ext)) where
