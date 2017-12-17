@@ -202,12 +202,17 @@ instantiateMatch κ π
 -- | Greedily pick a consumer rule and consumptions to work with, but obtain
 -- all possible instantiations of said rule. This way, nondeterminism is kept
 -- at the level of generated instances.
+--
+-- Note that consumer rules are always picked in the order that they are
+-- specified in the tableau settings κ.
 matchFirst :: forall ext . (F.Extension ext)
            => TableauSettings ext 
            -> Branch ext 
            -> [Match ext]
 matchFirst κ@(TableauSettings {rulesC}) π = join $ do 
-    μs <- greedy . filter (not . null) . map (instantiateMatch κ π)
+    μs <- greedy
+        . filter (not . null) 
+        . map (instantiateMatch κ π)
         $ rulesC >>= matchRule π
     case TS.compositor . rule . head $ μs of
         TS.Greedy -> greedy <$> return μs

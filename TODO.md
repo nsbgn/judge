@@ -2,6 +2,68 @@
 title: TODO
 ---
 
+
+Consolidate versions                                                  {#cabal}
+===============================================================================
+
+Consolidate the versions of dependencies in the cabal file.
+
+
+
+Clean up files                                                         {#lint}
+===============================================================================
+
+Use `HLint` to clean up the files, remove unused modules, etcetera.
+
+Also, the directory structure irks me. `LaTeX.hs`, for example, is in its own 
+file but `Printer.hs` is distributed across the printable submodules. I think 
+combining some files will make things clearer.
+
+
+
+Clean up output                                                      {#stderr}
+===============================================================================
+
+Anything that is not exported (e.g. diagnostics) should go to stderr. Also 
+make the output more informative: show the formula upon failure, and show the 
+simplification step in a succesful proof.
+
+
+
+Closure                                                             {#closure}
+===============================================================================
+
+Closure is now saved on the branch and then checked during the algorithm. This 
+seems unnecessary — can it not be checked dynamically in the first place?
+
+Secondly, a system may treat negation through formula signatures (say, `T` and 
+`F`) or by using the unary `¬` operator. Whichever method is chosen, the 
+system should know when a formula directly conflicts with another, so that it 
+can detect branch closure.
+
+The first instinct was to define 'negation marks', implying that any formula 
+that bears one of these marks conflicts with the same formula that doesn't. 
+This naturally also requires the notion of an initial mark: the user might 
+want to have control over the negation of the initial formula.
+
+This may not be the most intuitive solution. Is there are more general way to 
+define 'closure' in the JSON/YAML? To what extent should simplifier logic be 
+taken into account?
+
+
+
+Premise sorting                                             {#premise-sorting}
+===============================================================================
+
+The premises of a rule should be sorted by complexity; we wish to match the 
+most complex premise first, since it will place the most constraints on the 
+rest of the premises. This should be an easy matter of `sort (compare \`on\` 
+rank)`.
+
+#priority:high
+
+
+
 Composing rules with multiple instantiations                        {#compose}
 ===============================================================================
 
@@ -20,30 +82,6 @@ solve this, we may add the following values to the `compose` key:
 - `conjunctive`: The productions of each (applicable) instantiation on a node 
   are taken together, and appended to the branch one after the other. This is 
   a natural dual, but I don't see an immediate application.
-
-
-
-Explicitness & clarification of terminology                        {#explicit}
-===============================================================================
-
-The word 'premise' is now used for the part of the rule that is assumed to be 
-on the branch, and the word 'conclusion' for the part that may be added to the 
-branch in that case. The 'constraints' are those parts of the rule that block 
-a rule or multiply it into different possible instantiations.
-
-In the YAML file, these components are at the `if`, `then` and `where` keys 
-respectively. I think the terminology can be improved to refer more directly 
-to the subject matter.
-
-I suggest that:
-
-- The premises are the 'consumptions'. The key is `consume`.
-- The conclusions are the 'productions'. The key is `produce`.
-
-The code should be updated to reflect this. The code should also be made more 
-uniform and disambiguating in its use of words to describe 
-'permissive'/'generative' constraints and 'prohibitive'/'degenerative' 
-constraints, 'ε-rules'/'PB-rules', 'marks'/'signatures', etcetera.
 
 
 
@@ -68,25 +106,6 @@ also makes it clear which formulas are not primitive:
 
     preprocessor:
         - "(¬A)• ⇒ A• → ⊥"
-
-
-
-Closure                                                             {#closure}
-===============================================================================
-
-A system may treat negation through formula signatures (say, `T` and `F`) or 
-by using the unary `¬` operator. Whichever method is chosen, the system should 
-know when a formula directly conflicts with another so that it can detect 
-branch closure.
-
-The first instinct was to define 'negation marks', implying that any formula 
-that bears one of these marks conflicts with the same formula that doesn't. 
-This naturally also requires the notion of an initial mark: the user might 
-want to have control over the negation of the initial formula.
-
-This may not be the most intuitive solution. Is there are more general way to 
-define 'closure' in the JSON? To what extent should simplifier logic be taken 
-into account?
 
 
 
@@ -163,12 +182,8 @@ implementation and proof, so it was left out for now.
 
 
 
-LaTeX output                                                          {#latex}
+JSON output                                                            {#json}
 ===============================================================================
-
-Right now, resulting proof trees are only displayed on the terminal. There 
-should be an option to write output to a file, in different formats — most 
-importantly, LaTeX.
 
 For the purpose of seperation of concerns, we might also choose to write all 
 proofs in a uniform JSON format, and design a seperate program (`clerk`?) to 
@@ -177,35 +192,6 @@ also be visualised Fitch-style, for example (`--style fitch`); rules can be
 visualised `--review-rules`).
 
 A call could be `judge -o json -s J0.yml -g 'a & b' | clerk`.
-
-
-
-Rule sorting                                                        {#sorting}
-===============================================================================
-
-To reduce complexity, it is a helpful heuristic to apply α-rules before 
-β-rules (and rules with many composite or nondeterministic instantiations 
-next, and PB-rules after that).
-
-It should be possible to provide a manual sorting of rules. It is also 
-conceivable to have a setting to find a sensible ordering automatically.
-
-Make `Rule`s an instance of `Ord` so that we can implement the greedy 
-heuristic.
-
-#priority:high
-
-
-
-Premise sorting                                             {#premise-sorting}
-===============================================================================
-
-The premises of a rule should be sorted by complexity; we wish to match the 
-most complex premise first, since it will place the most constraints on the 
-rest of the premises. This should be an easy matter of `sort (compare \`on\` 
-rank)`.
-
-#priority:high
 
 
 
@@ -256,6 +242,20 @@ Selectively deactivate a rule                                  {#deactivation}
 
 For easier ad-hoc testing, provide a way to deactivate a rule with a simple 
 boolean switch in the YAML.
+
+
+
+Autosorting                                                     {#autosorting}
+===============================================================================
+
+To reduce complexity, it is a helpful heuristic to apply α-rules before 
+β-rules (and rules with many composite or nondeterministic instantiations 
+next, and PB-rules after that). This can be achieved manually by giving the 
+rules in the appropriate order in the specification.
+
+It is also conceivable to have a setting to find a sensible ordering 
+automatically, when `autosort:true` is specified. Make `Rule`s an instance of 
+`Ord` so that we can implement the greedy heuristic.
 
 
 

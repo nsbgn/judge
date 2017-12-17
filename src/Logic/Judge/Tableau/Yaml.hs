@@ -20,10 +20,6 @@ import "text" Data.Text (Text, empty, pack, unpack)
 import "yaml" Data.Yaml ((.:),(.:?),(.!=))
 import qualified "yaml" Data.Yaml as Y
 import qualified "aeson" Data.Aeson.Types as Y (typeMismatch, withText, withObject)
-import qualified "vector" Data.Vector as V
-import qualified "containers" Data.Map as M1
-import qualified "unordered-containers" Data.HashMap.Strict as M2
-
 
 import Logic.Judge.Tableau.Specification (Ref((:=)))
 import Logic.Judge.Parser (Parseable, parser, parse)
@@ -35,24 +31,15 @@ instance (F.Extension ext) => Y.FromJSON (T.TableauSystem ext) where
     parseJSON = Y.withObject "tableau system" $ \o ->
         T.TableauSystem
             <$> o .:? "name" .!= "untitled"
-            <*> (map namer . M2.toList <$> o .: "rules")
+            <*> o .:  "rules"
             <*> o .:? "assumptions" .!= mempty
 
-        where
-
-        -- | If the rule does not have a name, use the dictionary key as a
-        -- name.
-        namer :: (String, T.RuleUninstantiated ext) -> T.RuleUninstantiated ext
-        namer (key, ρ@T.Rule {T.name}) =
-            if name == ""
-                then ρ { T.name = key }
-                else ρ
 
 
 instance {-# OVERLAPPABLE #-} (Monoid a, Y.FromJSON a, Y.FromJSON b) => Y.FromJSON (T.Ref a b) where
     parseJSON = Y.withObject "named object" $ \o -> 
         (:=) 
-            <$> o .:? "name" .!= mempty
+            <$> o .:? "id" .!= mempty
             <*> Y.parseJSON (Y.Object o)
 
 
@@ -60,12 +47,12 @@ instance {-# OVERLAPPABLE #-} (Monoid a, Y.FromJSON a, Y.FromJSON b) => Y.FromJS
 instance (F.Extension ext, Y.FromJSON primitive) => Y.FromJSON (T.Rule (T.Constraint primitive ext) ext) where
     parseJSON = Y.withObject "tableau rule" $ \o ->
         T.Rule
-            <$> o .:? "name" .!= ""
-            <*> o .:  "if"
-            <*> o .:  "then"
+            <$> o .:  "name"
+            <*> o .:  "consume"
+            <*> o .:  "produce"
             <*> o .:? "generate" .!= T.None
             <*> o .:? "restrict" .!= T.None
-            <*> o .:? "compose" .!= T.Nondeterministic
+            <*> o .:? "compose"  .!= T.Nondeterministic
 
 
 
@@ -75,7 +62,7 @@ instance Y.FromJSON T.Compositor where
         "greedy"           -> return T.Greedy
         invalid            -> Y.typeMismatch expected (Y.String invalid)
 
-        where expected = "instance compositor"
+        where expected = "compositor"
 
 
 
@@ -98,8 +85,8 @@ instance Y.FromJSON T.PrimitiveDynamicTerms where
 
 instance (F.Extension ext, Y.FromJSON primitive) => Y.FromJSON (T.Terms primitive ext) where
     parseJSON (Y.Object o) 
-         =  T.Union        <$> o .: "union" 
-        <|> T.Intersection <$> o .: "intersection" 
+         =  T.Union        <$>  o .: "union" 
+        <|> T.Intersection <$>  o .: "intersection" 
         <|> T.Transform    <$> (o .: "with" >>= stringify) <*> o .: "with" <*> o .: "in"
         <|> fail "expected term specification"
 

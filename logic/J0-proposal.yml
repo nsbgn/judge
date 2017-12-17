@@ -4,31 +4,27 @@ name: J₀
 description: |
     This is the system I propose as a workable alternative to J0-naive.yml
 rules:
-    "F→":
-        if:
-            - "[F] A → B"
-        then: 
-            - ["[T] A", "[F] B"]
-    "T→":
-        if:
-            - "[T] A -> B"
-        then:
-            - ["[F] A"]
-            - ["[T] B"]
-    "F+":
-        if:
-            - "[F] T+S:A"
-        then: 
-            - ["[F] T:A", "[F] S:A"]
-    "F·": 
-        if:
-            - "[F] (S * T) : B"
-        then:
-            - ["[F] S:(A → B)"]
-            - ["[F] T:A"]
-        generate:
-            match: "A → B"
-            with: [subterms, formulas]
-            in:
-                union: [root, assumptions]
+    - name: "F→"
+      consume: ["[F] A → B"]
+      produce: 
+          - ["[T] A", "[F] B"]
+    - name: "F+"
+      consume: ["[F] T+S:A"]
+      produce: 
+          - ["[F] T:A", "[F] S:A"]
+    - name: "T→"
+      consume: ["[T] A -> B"]
+      produce:
+          - ["[F] A"]
+          - ["[T] B"]
+    - name: "F·"
+      consume: ["[F] (S * T) : B"]
+      produce:
+          - ["[F] S:(A → B)"]
+          - ["[F] T:A"]
+      generate:
+          match: "A → B"
+          with: [subterms, formulas]
+          in:
+              union: [root, assumptions]
 assumptions: []

@@ -56,21 +56,22 @@ data Rule generator ext = Rule
     -- do not have a pre-existing binding to check for compliance, so they 
     -- need to be created. This also makes it possible to keep track of which 
     -- bindings have already been attempted over the course of an algorithm,
-    -- thus allowing for certain termination guarantees in case such 
-    -- guarantees cannot be achieved otherwise.
+    -- thus allowing for termination guarantees in case termination is not
+    -- certain otherwise.
     -- 
-    -- The limitation of the generator is that no variable may be bound to 
-    -- terms from a dynamic set.
-    -- Note that a rule with an empty generator is no longer useful.
+    -- The limitation of the generator is that it is not very efficient and
+    -- that no variable may be bound to terms from a dynamic set, since the 
+    -- generator has to generate its instances at the beginning of the 
+    -- algorithm. (Note that the last point can be dropped if we do not need to
+    -- keep track of which bindings have already been used.)
     , constraint :: Constraint PrimitiveDynamicTerms ext
     -- ^ Although the generator *does* also restrict bound variables (with 
     -- brute force: a variable's previous binding will block all conflicting 
     -- assignments), it is more computationally efficient to simply check 
-    -- already known values for compliance, during runtime.
+    -- already known values for compliance, during runtime. 
     --
     -- The limitation of prohibitive constraints is that they cannot deal with
-    -- 'free' variables. The intersection of generators and constraints 
-    -- alleviates both their limitations.
+    -- 'free' variables. 
     , compositor :: Compositor
     -- ^ The compositor indicates how to handle the case where multiple 
     -- instances are suggested by the generator.
@@ -183,7 +184,7 @@ instantiateRule :: forall ext . (F.Extension ext)
                  -> Maybe (RuleInstantiated ext)
 instantiateRule concretise ρ@Rule {generator} = 
     fmap 
-        (\g -> ρ { generator = g })
+        (\instances -> ρ { generator = instances })
         (L.fromList . assign $ generator)
 
     where
