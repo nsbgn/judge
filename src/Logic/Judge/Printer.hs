@@ -93,6 +93,9 @@ instance Printable Int where
     pretty = PP.int
 
 
+instance Printable a => Printable (Maybe a) where
+    pretty = maybe PP.empty pretty
+
 instance (Printable a, Printable b) => Printable (Either a b) where
     pretty = either (left . pretty) (right . pretty)
         
@@ -101,10 +104,6 @@ instance (Printable a, Printable b) => Printable (Either a b) where
         right = (<$$>) (PP.bold . PP.green . PP.text $ "Success:") . PP.indent 4
         left = (<$$>) (PP.bold . PP.red . PP.text $ "Failure:") . PP.indent 4
 
-instance Printable a => Printable (Maybe a) where
-    pretty x = maybe 
-        (PP.red $ PP.string "Failed to satisfy goal.") 
-        ((PP.green (PP.string "Success:") <$>) . pretty) x <> PP.line
 
 instance (Printable a, Printable b) => Printable (a,b) where
     pretty (x, y) = 

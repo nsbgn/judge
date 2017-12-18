@@ -50,16 +50,15 @@ main = do
 
                 forM_ φs $ \φ -> do
 
-                    write stdout (pretty φ)
-    
                     if CLI.verbose arg
                         then TX.analyseSystem sys φ
                         else return ()
                     
-                    let θ = TA.decide sys φ
+                    let result = TA.decide sys φ
+
                     case CLI.format arg of
-                        CLI.LaTeX -> write h $ latex θ
-                        _         -> write h $ pretty θ
+                        CLI.LaTeX -> write h $ latex result
+                        _         -> write h $ pretty result
 
             value -> unknown value "system"
         value -> unknown value "logic"

@@ -1,7 +1,8 @@
 #!/bin/bash
 
 function printlatex {
-    echo "x : A -> c*x : (B -> A)
+    echo "p | ~p
+          x : A -> c*x : (B -> A)
           x : A -> x*c : (B -> A)
           x : A -> c*(x+x') : (B->A) " |\
     runhaskell -i'src' app/Main.hs \
@@ -10,6 +11,12 @@ function printlatex {
         -o goals.tex \
         'logic/j0-new.yml' \
     && xelatex goals.tex
+}
+
+function printterminal {
+    runhaskell -i'src' app/Main.hs \
+        -g "x : A & y:(A->B) -> y*(x+x') : B" \
+        "logic/j0-new.yml"
 }
 
 function comparesystems {

@@ -36,6 +36,12 @@ import qualified Logic.Judge.Tableau.Specification as TS
 type BranchFormula ext = Ref Int (F.Marked (F.Formula ext))
 
 
+-- | Like 'Either', but remembers the original input in the Right case too.
+data Result input output
+    = Success input output
+    | Failure input
+
+
 -- | A proof in a tableau system is a rose tree, containing formulas and the
 -- rule applications used to obtain them.
 data Tableau ext
@@ -307,7 +313,7 @@ subtableau κ = greedy . subtableaux
 -- single step at the end so that we don't have the mental (and computational) 
 -- burden of carrying a State monad everywhere. 
 renumber :: Tableau ext -> Tableau ext
-renumber = flip ST.evalState (0,[]) . renumber'
+renumber = flip ST.evalState (1, []) . renumber'
 
     where
     -- The renumbering is done by keeping track of the number of times we
@@ -335,6 +341,19 @@ renumber = flip ST.evalState (0,[]) . renumber'
         return θ'
 
 
+-- | A non-essential step: If the root formula is not exactly the input
+-- formula, add an explicit simplification step to the proof to show what
+-- happened.
+explicitRewrite :: F.Extension ext 
+                => F.Formula ext 
+                -> Tableau ext 
+                -> Tableau ext
+explicitRewrite φ θ@(Node [i := F.Marked m ψ] _) = 
+    if φ == ψ
+        then θ
+        else Node [subtract 1 i := F.Marked m φ] 
+           $ Application "rewrite" [i-1] [θ]
+
 
 -- | Decide the validity of the target formula within the given logical system.
 -- A branch closes when it internally contradicts. A branch that is neither 
@@ -344,8 +363,14 @@ renumber = flip ST.evalState (0,[]) . renumber'
 decide :: forall ext . (F.Extension ext) 
        => TS.TableauSystem ext
        -> F.Formula ext
-       -> Maybe (Tableau ext)
-decide system goal = renumber <$> uncurry subtableau (initial system goal)
+       -> Result (F.Formula ext) (Tableau ext)
+decide system goal =
+    let postprocess = renumber . explicitRewrite goal
+        result = uncurry subtableau (initial system goal)
+    in  maybe (Failure goal) (Success goal) $ postprocess <$> result 
+
+
+
 
 
 -- | Construct the initial branch and settings for the decision algorithm.

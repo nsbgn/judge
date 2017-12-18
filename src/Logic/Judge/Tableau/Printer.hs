@@ -46,6 +46,16 @@ instance Printable ext => Printable (TA.Tableau ext) where
 
 
 
+instance (Printable input, Printable ext) => Printable (TA.Result input (TA.Tableau ext)) where
+    pretty result = case result of
+        TA.Failure input ->
+            PP.red (PP.string "Failed to satisfy goal:") <+> pretty input
+        TA.Success input output ->
+            PP.green (PP.string "Success:") <$>
+            pretty output
+
+
+
 instance Printable b => Printable (Ref Int b) where
     pretty (i := v) = 
         pretty v <+> (styleAnnotation . PP.braces . pretty $ i)

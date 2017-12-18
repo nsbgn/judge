@@ -26,12 +26,22 @@ import qualified Logic.Judge.Tableau.Algorithm as TA
 class LaTeX a where
     latex :: a -> PP.Doc
 
-instance LaTeX a => LaTeX (Maybe a) where
-    latex x = PP.string "\\begin{result}" <$>
-        maybe 
-        (PP.string "Failed to satisfy goal.") 
-        latex x <$> 
-        PP.string "\\end{result}"
+
+
+instance (LaTeX input, Printable ext) => LaTeX (TA.Result input (TA.Tableau ext)) where
+    latex result = wrap $ case result of
+        TA.Failure input ->
+            PP.string "Failed to satisfy goal: $" <+> latex input <> PP.char '$'
+        TA.Success input output ->
+            latex output
+
+        where
+        wrap result = 
+            PP.string "\\begin{result}" <$> 
+            result <$> 
+            PP.string "\\end{result}"
+
+
 
 instance LaTeX a => LaTeX (Ref Int a) where
     latex (i := φ) = 
@@ -39,6 +49,7 @@ instance LaTeX a => LaTeX (Ref Int a) where
         latex φ <> 
         PP.char '$' <+> 
         cmd "n" (PP.int i)
+
 
 instance LaTeX a => LaTeX (F.Marked a) where
     latex (F.Marked m φ) = 
