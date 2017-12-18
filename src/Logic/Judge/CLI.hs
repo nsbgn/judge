@@ -58,29 +58,29 @@ arguments = O.execParser prog
     options = Arguments
         <$> O.switch
             (   O.short 'v' <> O.long "verbose"
-            <>  O.help "Increase verbosity of output."
+            <>  O.help "Show diagnostics"
             )
         <*> O.many ( O.strOption
             (   O.short 'a' <> O.long "assumption" <> O.metavar "EXPR"
-            <>  O.help "Add an assumption to the system. \n\
-                       \May be provided multiple times."
+            <>  O.help "Add assumption(s). May be provided multiple times"
             )
             )
         <*> O.many ( O.strOption
             (   O.short 'g' <>  O.long "goal" <> O.metavar "EXPR"
             <>  O.help "Set goal formula(s). Will be read from standard \n\
-                       \input if none are given."
+                       \input if none are given. May be provided multiple \n\
+                       \times"
             )
             )
         <*> ( O.optional $ O.strOption
             (   O.short 'o' <>  O.long "output" <> O.metavar "PATH"
-            <>  O.help "Output file. Defaults to standard output."
+            <>  O.help "Output file (default: standard input)"
             )
             )
         <*> ( O.option O.auto
             (   O.short 'f' <>  O.long "format" <> O.metavar "FMT"
             <>  O.value Plain <> O.showDefault
-            <>  O.help "Output format."
+            <>  O.help "Output format"
             )
             )
         <*> ( O.argument O.str (O.metavar "LOGIC") )

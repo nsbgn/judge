@@ -10,24 +10,17 @@ Use `HLint` to clean up the files, remove unused modules, etcetera.
 
 Also, the directory structure irks me. `LaTeX.hs`, for example, is in its own 
 file but `Printer.hs` is distributed across the printable submodules. I think 
-combining some files will make things clearer.
-
-
-
-Clean up output                                                      {#stderr}
-===============================================================================
-
-Anything that is not exported (e.g. diagnostics) should go to stderr. Also 
-make the output more informative: show the formula upon failure, and show the 
-simplification step in a succesful proof.
+combining some files will make things clearer. Export properly, like in 
+`Formula.Parser`. Also, I added LaTeX math environment symbols ad-hoc; should 
+probably take a similar approach to the one I took with parserEmbedded.
 
 
 
 Closure                                                             {#closure}
 ===============================================================================
 
-Closure is now saved on the branch and then checked during the algorithm. This 
-seems unnecessary — can it not be checked dynamically in the first place?
+Closure is now saved onto the branch and then checked during the algorithm. 
+This seems unnecessary — can it not be checked dynamically in the first place?
 
 Secondly, a system may treat negation through formula signatures (say, `T` and 
 `F`) or by using the unary `¬` operator. Whichever method is chosen, the 
@@ -185,6 +178,17 @@ generally usable.
 
 
 
+Option for suppressing ANSI colorisation                               {#ansi}
+===============================================================================
+
+The `write` function automatically turns off syntax highlighting if we are 
+printing to a file instead of the standard output. However, this means that 
+redirection of the standard output will include ANSI colorisation codes. This 
+is easily prevented by using the `-o` argument instead of redirecting stdout, 
+but it would be nice to handle this more gracefully.
+
+
+
 Testing                                                             {#testing}
 ===============================================================================
 
@@ -259,11 +263,13 @@ Code practices                                                    {#practices}
 - 'TableauSettings' should perhaps not be passed as a parameter. Rather, it is 
   a state in a 'Reader' monad.
 
-- I don't need both `mtl` and `transformers`. Choose one.
+- I don't need both `mtl` and `transformers`. 
+  [Choose](https://wiki.haskell.org/Monad_Transformers) one.
 
 - It is probably possible to refactor the patterning code; it's not really 
   necessary to carry a state context over the Maybe monad, since the state 
-  *is* the result of the computation.
+  *is* the result of the computation, and sequentiality is already captured by 
+  the Maybe monad.
 
 Extend existing systems                                          {#extensions}
 ===============================================================================
@@ -280,6 +286,8 @@ There are two obvious (not mutually exclusive choices) for this:
 
 As of now, the latter has my preference.
 
+Also, search for logics in /usr/share/judge/ and ~/.judge/ as well as the 
+current directory (and make adding `.yaml`, `.json`, `.yml` optional).
 
 
 Precedence-awareness of prettyprinter                     {#prettyprecedences}

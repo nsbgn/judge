@@ -13,7 +13,7 @@ module Logic.Judge.Printer where
 import Prelude hiding ((<$>))
 import "base" Control.Monad (foldM)
 import "base" GHC.IO.Handle (Handle)
-import "base" GHC.IO.Handle.FD (stdout)
+import "base" GHC.IO.Handle.FD (stdout, stderr)
 import "text" Data.Text (Text, pack, unpack)
 import "terminal-size" System.Console.Terminal.Size (size, width)
 import "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen ((<>), (<+>), (</>), (<$>), (<$$>), (<//>))
@@ -44,10 +44,13 @@ class Printable a where
     prettyRecursive = pretty
 
 
--- | Write a document to some file handle.
+-- | Write a document to some file handle. Automatically chooses `prettyprint`
+-- or `export` based on whether we are writing to a file or to stdout. Note
+-- that this means that redirecting stdout to a file will include ANSI
+-- colorisation codes.
 write :: Handle -> PP.Doc -> IO ()
 write fd = 
-    if fd == stdout
+    if fd == stdout || fd == stderr
         then prettyprint fd
         else export fd 
 

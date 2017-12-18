@@ -3,7 +3,7 @@
 
 import "base" System.IO (IOMode(WriteMode))
 import "base" GHC.IO.Handle (Handle, hClose)
-import "base" GHC.IO.Handle.FD (stdout, openFile)
+import "base" GHC.IO.Handle.FD (stdout, stderr, openFile)
 import "base" Control.Monad (forM_)
 import "base" Data.Maybe (fromJust)
 import "text" Data.Text (Text, pack, unpack)
@@ -44,14 +44,16 @@ main = do
                     <*> (CLI.assumptions arg :: IO [F.FormulaJL])
                 φs <- CLI.goals arg :: IO [F.FormulaJL]
 
-                if CLI.verbose arg
-                    then write stdout (pretty sys)
-                    else return ()
+                -- Tableau system is not prettyprinted well, so won't be shown
+                -- even in verbose mode for now
+                --if CLI.verbose arg
+                --    then write stderr $ pretty sys
+                --    else return ()
 
                 forM_ φs $ \φ -> do
 
                     if CLI.verbose arg
-                        then TX.analyseSystem sys φ
+                        then write stderr $ TX.analysis sys φ
                         else return ()
                     
                     let result = TA.decide sys φ
