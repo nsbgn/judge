@@ -2,7 +2,7 @@ logic: justification
 system: tableau
 name: J₀
 description: |
-    This is the system I propose as a workable alternative to J0-naive.yml
+    This is the system described in my thesis.
 rules:
     - name: "F→"
       consume: ["[F] A → B"]

@@ -10,8 +10,8 @@ maintainer:             ns@slak.ws
 category:               Logic
 build-type:             Simple
 extra-source-files:     README.md
-                      , logic/J0-proposal.yml
-                      , logic/J0-naive.yml
+                      , logic/j0-new.yml
+                      , logic/j0-ghari.yml
 
 cabal-version:          >=1.10
 
