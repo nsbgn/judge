@@ -13,6 +13,8 @@ import Prelude hiding (getContents)
 import "text" Data.Text (Text, pack, unpack)
 import "text" Data.Text.IO (getContents)
 import "base" Data.Monoid ((<>))
+import "base" Control.Applicative ((*>),(<*))
+import "base" Control.Monad (void)
 import qualified "optparse-applicative" Options.Applicative as O
 import qualified "attoparsec" Data.Attoparsec.Text as P
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
@@ -87,7 +89,7 @@ arguments = O.execParser prog
 
     description = "Decides whether given logical formulas are provable in \n\
                   \some logical system. Takes a YAML or JSON file as input. \n\
-                  \Refer to my Master's thesis for specification."
+                  \Refer to README for more information."
 
 
 -- | Read additional assumptions. As obtained from command line arguments.
@@ -98,8 +100,14 @@ assumptions arg = (parse parser . pack) `mapM` _assumptions arg
 -- | Obtain goal formulas. Taken from command line arguments or standard input.
 goals :: Parseable f => Arguments -> IO [f]
 goals arg = case _goals arg of
-    [] -> do
+    [] -> getContents >>= parse (comment *> P.many1 (parser <* comment))
         --putStrLn "Reading goal formulas from standard input (end: CTRL-D)"
-        parse (P.many1 parser) =<< getContents
     xs -> (parse parser . pack) `mapM` xs
+
+    where
+    comment :: P.Parser ()
+    comment = 
+        P.skipSpace *> P.skipMany (
+            P.char '#' *> P.manyTill P.anyChar P.endOfLine <* P.skipSpace
+        )
 

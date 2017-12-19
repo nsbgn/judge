@@ -18,6 +18,7 @@ After cloning the repository, the recommended installation method is through
 To install with [Cabal](https://www.haskell.org/cabal/users-guide/), do:
  
     cabal sandbox init
+    cabal configure
     cabal build
     cabal install
 

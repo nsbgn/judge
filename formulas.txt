@@ -1,0 +1,20 @@
+##############################################################################
+# This file contains some example formulas to try                            #
+##############################################################################
+
+# A simple propositional test
+(~r → p) & (r → q) -> (p | q)
+
+# The Application axiom should derive instantly in both j0-new and j0-ghari
+x:A → y:(A → B) -> y*x:B
+
+# ... and this one should fail instantly
+x:A → y:(A → B) -> x*y:B
+
+# This is a good one: it works in both j0-new and j0-ghari, but inspects about 
+# 18000 formulas in the latter (or 8000 if x:A is in the CS instead of the
+# antecedent)
+x:A → y:(A → B) → y*(x+x'):B
+
+# ... And this one just gets too complex to find at all
+x:A → y:(A → B) → (y+y')*x:B
