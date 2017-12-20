@@ -2,7 +2,7 @@ judge
 ==============================================================================
 
 `judge` is an implementation of a decision procedure for classical and 
-justification logic. It is based on a tableau-based theorem prover. 
+justification logic, through a tableau-based theorem prover. 
 
 
 
@@ -15,7 +15,8 @@ After cloning the repository, the recommended installation method is through
     stack build
     stack install judge
 
-To install with [Cabal](https://www.haskell.org/cabal/users-guide/), do:
+To install with [Cabal](https://www.haskell.org/cabal/users-guide/) instead, 
+do:
  
     cabal sandbox init
     cabal configure
@@ -39,7 +40,7 @@ rules of inference. See the [logic/](logic) directory for examples.
 Given a logical system `J.yml` and a target formula, say, `x:(A→B) ∧ y:A → 
 x·y:B`, construct the proof as follows:
 
-    judge -g 'x:(A->B) & y:A -> x*y:B' J.yml
+    judge -g "x:(A->B) & y:A -> x*y:B" J.yml
 
 If no target(s) are given, formulas are read off the standard input. By 
 default, the result is written as plain text to the standard output. Add `-o 

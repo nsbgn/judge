@@ -19,18 +19,16 @@ library
     hs-source-dirs:     src
     exposed-modules:    Logic.Judge.CLI
                       , Logic.Judge.PointedList
-                      , Logic.Judge.Printer
-                      , Logic.Judge.LaTeX
                       , Logic.Judge.Formula
                       , Logic.Judge.Formula.Datastructure
                       , Logic.Judge.Formula.Parser
-                      , Logic.Judge.Formula.Printer
                       , Logic.Judge.Formula.Substitution
-                      , Logic.Judge.Tableau.Specification
-                      , Logic.Judge.Tableau.Printer
-                      , Logic.Judge.Tableau.Yaml  
-                      , Logic.Judge.Tableau.Algorithm
-                      , Logic.Judge.Tableau.Analytics
+                      , Logic.Judge.Prover.Yaml  
+                      , Logic.Judge.Prover.Tableau
+                      , Logic.Judge.Prover.Tableau.Analytics
+                      , Logic.Judge.Writer
+                      , Logic.Judge.Writer.Plain
+                      , Logic.Judge.Writer.LaTeX
     build-depends:      base >=4.7 && <5
                       , text ==1.2.2.2
                       , bytestring >=0.10.8.1 && <0.10.8.3

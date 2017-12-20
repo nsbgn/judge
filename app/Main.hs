@@ -9,13 +9,12 @@ import "text" Data.Text (Text, pack, unpack)
 import qualified "yaml" Data.Yaml as Y
 import qualified "unordered-containers" Data.HashMap.Strict as M2
 
-import qualified Logic.Judge.Writer as W
 import qualified Logic.Judge.CLI as CLI
 import qualified Logic.Judge.Formula as F
-import qualified Logic.Judge.Tableau.Specification as TS
-import qualified Logic.Judge.Tableau.Algorithm as TA
-import qualified Logic.Judge.Tableau.Yaml as TY
-import qualified Logic.Judge.Tableau.Analytics as TX
+import qualified Logic.Judge.Prover.Yaml as TY
+import qualified Logic.Judge.Prover.Tableau as T
+import qualified Logic.Judge.Prover.Tableau.Analytics as TX
+import qualified Logic.Judge.Writer as W
 
 
 main :: IO ()
@@ -27,7 +26,7 @@ main = do
         "justification" -> case yaml .: "system" of
             "tableau" -> do
                 sys <- addAssumptions 
-                    <$> (deserialise yaml :: IO (TS.TableauSystem F.Justification))
+                    <$> (deserialise yaml :: IO (T.TableauSystem F.Justification))
                     <*> (CLI.assumptions arg :: IO [F.FormulaJL])
 
                 -- Tableau system is not prettyprinted well, so won't be shown
@@ -47,7 +46,7 @@ main = do
                         then W.prettyprint stderr $ TX.analysis sys φ
                         else return ()
                     
-                    W.writeBody file format (TA.decide sys φ)
+                    W.writeBody file format (T.decide sys φ)
                 W.writeFooter file format
 
                 if file /= stdout
@@ -61,9 +60,9 @@ main = do
 
     where
 
-    addAssumptions :: TS.TableauSystem ext -> [F.Formula ext] -> TS.TableauSystem ext
+    addAssumptions :: T.TableauSystem ext -> [F.Formula ext] -> T.TableauSystem ext
     addAssumptions system assumptions = 
-        system { TS.assumptions = assumptions ++ TS.assumptions system }
+        system { T.assumptions' = assumptions ++ T.assumptions' system }
 
     unknown :: Text -> Text -> IO ()
     unknown value key =

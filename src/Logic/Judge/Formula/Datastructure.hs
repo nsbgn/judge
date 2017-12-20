@@ -174,7 +174,9 @@ isMarkedFormula (MarkedFormula _) = True
 isMarkedFormula _ = False
 
 
--- | Interpret a marked formula as a choice of terms.
+-- | Interpret a marked formula as a choice of terms. Note that it is not
+-- always clear whether a value from 'Terms' is meant as the marked or the
+-- unmarked version — so we offer both.
 asTerm :: Marked (Formula ext) -> [Term ext]
 asTerm φ = [MarkedFormula φ, Formula . unmarked $ φ]
 

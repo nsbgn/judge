@@ -16,11 +16,9 @@ import "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen ((<>), (<+>), (</>), (<$>),
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 
 import Logic.Judge.Writer.Plain (Printable, pretty)
---import Logic.Judge.Formula.Printer ()
---import Logic.Judge.Tableau.Printer ()
-import Logic.Judge.Tableau.Specification (Ref((:=)))
+import Logic.Judge.Prover.Tableau (Ref((:=)))
 import qualified Logic.Judge.Formula as F
-import qualified Logic.Judge.Tableau.Algorithm as TA
+import qualified Logic.Judge.Prover.Tableau as T
 
 
 class LaTeX a where
@@ -28,11 +26,11 @@ class LaTeX a where
 
 
 
-instance (LaTeX input, Printable ext) => LaTeX (TA.Result input (TA.Tableau ext)) where
+instance (LaTeX input, Printable ext) => LaTeX (T.Result input (T.Tableau ext)) where
     latex result = wrap $ case result of
-        TA.Failure input ->
+        T.Failure input ->
             PP.string "Failed to satisfy goal: $" <+> latex input <> PP.char '$'
-        TA.Success input output ->
+        T.Success input output ->
             latex output
 
         where
@@ -60,7 +58,7 @@ instance LaTeX a => LaTeX (F.Marked a) where
 instance Printable ext => LaTeX (F.Formula ext) where
     latex = pretty
 
-instance (Printable ext) => LaTeX (TA.Tableau ext) where
+instance (Printable ext) => LaTeX (T.Tableau ext) where
     latex θ = 
         PP.string "\\begin{forest}" <$> 
         PP.string "tableau" <$> 
@@ -69,15 +67,15 @@ instance (Printable ext) => LaTeX (TA.Tableau ext) where
 
         where
         latex' θ = case θ of
-            TA.Closure -> 
+            T.Closure -> 
                 PP.string ", closed"
-            TA.Application name refs θs -> 
+            T.Application name refs θs -> 
                 PP.string ", apply=$\\sf " <> 
                 PP.string name <+> 
                 PP.string "$\\ " <> 
                 cmd "n" (PP.tupled $ map PP.int refs) <$> 
                 PP.indent 4 (PP.vsep $ map latex' θs)
-            TA.Node (φ:φs) θ -> 
+            T.Node (φ:φs) θ -> 
                 PP.lbracket <+> latex φ <> 
                 foldr (\φ doc -> 
                     PP.line <> PP.indent 4 (

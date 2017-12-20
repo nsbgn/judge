@@ -10,7 +10,7 @@ Stability   : experimental
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PackageImports #-}
-module Logic.Judge.Tableau.Yaml where
+module Logic.Judge.Prover.Yaml where
 
 import "base" Data.List (delete)
 import "base" Data.Maybe (fromMaybe)
@@ -21,9 +21,9 @@ import "yaml" Data.Yaml ((.:),(.:?),(.!=))
 import qualified "yaml" Data.Yaml as Y
 import qualified "aeson" Data.Aeson.Types as Y (typeMismatch, withText, withObject)
 
-import Logic.Judge.Tableau.Specification (Ref((:=)))
+import Logic.Judge.Prover.Tableau (Ref((:=)))
 import qualified Logic.Judge.Formula as F
-import qualified Logic.Judge.Tableau.Specification as T
+import qualified Logic.Judge.Prover.Tableau as T
 
 
 instance (F.Extension ext) => Y.FromJSON (T.TableauSystem ext) where
@@ -131,7 +131,7 @@ instance (F.Extension ext, Y.FromJSON primitive) => Y.FromJSON (T.Constraint pri
     parseJSON = Y.withObject "constraint or generator" $ \o ->
             T.Choose <$> o .: "or"
         <|> T.Merge  <$> o .: "and"
-        <|> T.Match  <$> o .: "match" <*> Y.parseJSON (Y.Object o)
+        <|> T.Bind   <$> o .: "match" <*> Y.parseJSON (Y.Object o)
         <|> fail "expected constraint or generator"
 
 

@@ -22,10 +22,9 @@ import qualified "containers" Data.Map as M1
 import qualified "unordered-containers" Data.HashMap.Strict as M2
 
 import qualified Logic.Judge.Formula.Datastructure as F
-import Logic.Judge.Tableau.Specification (Ref((:=)))
+import Logic.Judge.Prover.Tableau (Ref((:=)))
 import qualified Logic.Judge.Formula as F
-import qualified Logic.Judge.Tableau.Specification as T
-import qualified Logic.Judge.Tableau.Algorithm as TA
+import qualified Logic.Judge.Prover.Tableau as T
 
 styleForm = id
 styleOp = PP.bold
@@ -238,11 +237,11 @@ binary p c q =
 
 
 
-instance Printable ext => Printable (TA.Tableau ext) where
+instance Printable ext => Printable (T.Tableau ext) where
     pretty θ = case θ of
-        TA.Closure -> pretty False
-        TA.Node φs subθ -> PP.vsep (map pretty φs) <$> pretty subθ
-        TA.Application name refs θs -> branch
+        T.Closure -> pretty False
+        T.Node φs subθ -> PP.vsep (map pretty φs) <$> pretty subθ
+        T.Application name refs θs -> branch
             (styleAnnotation $ pretty name <> list refs)
             (map pretty θs)
     
@@ -254,11 +253,11 @@ instance Printable ext => Printable (TA.Tableau ext) where
 
 
 
-instance (Printable input, Printable ext) => Printable (TA.Result input (TA.Tableau ext)) where
+instance (Printable input, Printable ext) => Printable (T.Result input (T.Tableau ext)) where
     pretty result = case result of
-        TA.Failure input ->
+        T.Failure input ->
             PP.red (PP.string "Failed to satisfy goal:") <+> pretty input
-        TA.Success input output ->
+        T.Success input output ->
             PP.green (PP.string "Success:") <$>
             pretty output
 
@@ -303,7 +302,7 @@ instance (Printable ext, Printable primitive) => Printable (T.Constraint primiti
 
     prettyRecursive constraint = case constraint of
         T.None -> PP.empty
-        T.Match pattern terms -> pretty pattern <+> phrase "matches" <+> prettyRecursive terms
+        T.Bind pattern terms -> pretty pattern <+> phrase "matches" <+> prettyRecursive terms
         T.Choose cs -> "or alternatively" `seperates` map prettyRecursive cs
         T.Merge cs -> "while simultaneously" `seperates` map prettyRecursive cs
     
@@ -339,7 +338,7 @@ instance (Printable ext) => Printable (T.TableauSystem ext) where
         PP.indent 2 (
             subtitle "Assumptions" <$$> 
             PP.empty <$$>
-            pretty (T.assumptions tableau) <$$>
+            pretty (T.assumptions' tableau) <$$>
             PP.empty <$$>
             subtitle "Rules" <$$> 
             PP.empty <$$>
