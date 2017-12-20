@@ -1,6 +1,6 @@
 -- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
-Module      : Logic.Judge.LaTeX
+Module      : Logic.Judge.Writer.LaTeX
 Description : Instances for LaTeX output.
 License     : GPL-3
 Stability   : experimental
@@ -9,15 +9,15 @@ Stability   : experimental
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Logic.Judge.LaTeX where
+module Logic.Judge.Writer.LaTeX where
 
 import Prelude hiding ((<$>))
 import "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen ((<>), (<+>), (</>), (<$>), (<$$>), (<//>))
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 
-import Logic.Judge.Printer (Printable, pretty)
-import Logic.Judge.Formula.Printer ()
-import Logic.Judge.Tableau.Printer ()
+import Logic.Judge.Writer.Plain (Printable, pretty)
+--import Logic.Judge.Formula.Printer ()
+--import Logic.Judge.Tableau.Printer ()
 import Logic.Judge.Tableau.Specification (Ref((:=)))
 import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Tableau.Algorithm as TA

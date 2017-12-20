@@ -24,7 +24,6 @@ import qualified "containers" Data.Tree as R
 import qualified "containers" Data.Map as M
 import qualified "mtl" Control.Monad.State.Lazy as ST
 
-import Logic.Judge.Printer ()
 import Logic.Judge.Tableau.Specification (Ref((:=)))
 import qualified Logic.Judge.PointedList as L
 import qualified Logic.Judge.Formula as F

@@ -9,14 +9,11 @@ Stability   : experimental
 module Logic.Judge.Formula
     ( module Logic.Judge.Formula.Datastructure
     , module Logic.Judge.Formula.Parser
-    , module Logic.Judge.Formula.Printer
     , Extension
     ) where
 
-import Logic.Judge.Printer
 import Logic.Judge.Formula.Datastructure
 import Logic.Judge.Formula.Parser
-import Logic.Judge.Formula.Printer
 import Logic.Judge.Formula.Substitution
 
 
@@ -25,5 +22,5 @@ import Logic.Judge.Formula.Substitution
 --
 -- This encompassing class shortens class constraints and also avoids 
 -- UndecidableInstances in some cases.
-class (Eq e, Ord e, Parseable e, Printable e, Subterm e e, HasVariables e, Substitutable e e) => Extension e
+class (Eq e, Ord e, Parseable e, Subterm e e, HasVariables e, Substitutable e e) => Extension e
 instance Extension Justification

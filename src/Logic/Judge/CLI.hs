@@ -12,29 +12,29 @@ module Logic.Judge.CLI where
 import Prelude hiding (getContents)
 import "text" Data.Text (Text, pack, unpack)
 import "text" Data.Text.IO (getContents)
+
+import "base" System.IO (IOMode(WriteMode))
 import "base" Data.Monoid ((<>))
 import "base" Control.Applicative ((*>),(<*))
 import "base" Control.Monad (void)
+import "base" GHC.IO.Handle (Handle)
+import "base" GHC.IO.Handle.FD (stdout, openFile)
 import qualified "optparse-applicative" Options.Applicative as O
 import qualified "attoparsec" Data.Attoparsec.Text as P
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 
+import Logic.Judge.Writer (Format(Plain,LaTeX))
 import Logic.Judge.Formula.Parser (parse, Parseable)
 
 data Arguments = Arguments 
     { verbose      :: Bool
     , _goals       :: [String]
     , _assumptions :: [String]
-    , outfile      :: Maybe String
+    , _outfile     :: Maybe String
     , format       :: Format
     , infile       :: String
     }
 
-
-data Format 
-    = LaTeX 
-    | Plain 
-    deriving (Show, Read)
 
 
 arguments :: IO Arguments
@@ -103,7 +103,12 @@ arguments = O.execParser prog
           \README.md for more information."
 
 
--- | Read additional assumptions. As obtained from command line arguments.
+-- | Obtain and open file handle for output file.
+outfile :: Arguments -> IO Handle
+outfile arg = maybe (return stdout) (flip openFile WriteMode) (_outfile arg)
+
+
+-- | Obtain additional assumptions. Taken from command line arguments.
 assumptions :: Parseable f => Arguments -> IO [f]
 assumptions arg = mapM (parse . pack) (_assumptions arg)
 

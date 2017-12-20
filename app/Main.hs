@@ -1,48 +1,34 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-import "base" System.IO (IOMode(WriteMode))
 import "base" GHC.IO.Handle (Handle, hClose)
-import "base" GHC.IO.Handle.FD (stdout, stderr, openFile)
+import "base" GHC.IO.Handle.FD (stdout, stderr)
 import "base" Control.Monad (forM_)
 import "base" Data.Maybe (fromJust)
 import "text" Data.Text (Text, pack, unpack)
 import qualified "yaml" Data.Yaml as Y
 import qualified "unordered-containers" Data.HashMap.Strict as M2
 
-import Logic.Judge.Printer (pretty, write)
-import Logic.Judge.LaTeX (latex, latexHeader, latexFooter)
+import qualified Logic.Judge.Writer as W
 import qualified Logic.Judge.CLI as CLI
 import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Tableau.Specification as TS
 import qualified Logic.Judge.Tableau.Algorithm as TA
 import qualified Logic.Judge.Tableau.Yaml as TY
-import qualified Logic.Judge.Tableau.Printer as TP
 import qualified Logic.Judge.Tableau.Analytics as TX
-
-
-header :: Handle -> CLI.Format -> IO ()
-header h CLI.LaTeX = write h latexHeader
-header h _ = return ()
-
-footer :: Handle -> CLI.Format -> IO ()
-footer h CLI.LaTeX = write h latexFooter
-footer h _ = return ()
 
 
 main :: IO ()
 main = do
     arg <- CLI.arguments
     yaml <- deserialiseGeneric (CLI.infile arg)
-    h <- maybe (return stdout) (flip openFile WriteMode) $ CLI.outfile arg
-    header h $ CLI.format arg
+
     case yaml .: "logic" of
         "justification" -> case yaml .: "system" of
             "tableau" -> do
                 sys <- addAssumptions 
                     <$> (deserialise yaml :: IO (TS.TableauSystem F.Justification))
                     <*> (CLI.assumptions arg :: IO [F.FormulaJL])
-                φs <- CLI.goals arg :: IO [F.FormulaJL]
 
                 -- Tableau system is not prettyprinted well, so won't be shown
                 -- even in verbose mode for now
@@ -50,25 +36,28 @@ main = do
                 --    then write stderr $ pretty sys
                 --    else return ()
 
-                forM_ φs $ \φ -> do
+                targets <- CLI.goals arg :: IO [F.FormulaJL]
+                file <- CLI.outfile arg
+                let format = CLI.format arg 
+
+                W.writeHeader file format
+                forM_ targets $ \φ -> do
 
                     if CLI.verbose arg
-                        then write stderr $ TX.analysis sys φ
+                        then W.prettyprint stderr $ TX.analysis sys φ
                         else return ()
                     
-                    let result = TA.decide sys φ
+                    W.writeBody file format (TA.decide sys φ)
+                W.writeFooter file format
 
-                    case CLI.format arg of
-                        CLI.LaTeX -> write h $ latex result
-                        _         -> write h $ pretty result
+                if file /= stdout
+                    then hClose file
+                    else return ()
+
 
             value -> unknown value "system"
         value -> unknown value "logic"
     
-    footer h $ CLI.format arg
-    if h /= stdout
-        then hClose h
-        else return ()
 
     where
 
