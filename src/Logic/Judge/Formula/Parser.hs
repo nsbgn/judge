@@ -10,8 +10,11 @@ Stability   : experimental
 {-# LANGUAGE PackageImports #-}
 module Logic.Judge.Formula.Parser
     (
+    -- * Parser typeclass
+      Parseable
+    , parse
     -- * Formula parsers
-      formula
+    , formula
     , modality
     , justification
     , quantifier
@@ -20,6 +23,7 @@ module Logic.Judge.Formula.Parser
     , marked
     , identifier
     , boolean
+    , comments
     -- * Generic parser building
     , expression
     , ambiguity
@@ -30,14 +34,32 @@ import "base" Data.List (tails, sortBy, groupBy)
 import "base" Data.Function (on)
 import "base" Data.Maybe (catMaybes, listToMaybe)
 import "base" Data.Char (isAlphaNum, isUpper)
-import "base" Control.Applicative ((<|>), liftA2)
+import "base" Control.Applicative ((<|>), (<*), (*>), liftA2)
 import "text" Data.Text (Text, pack, unpack, empty, length)
 import "attoparsec" Data.Attoparsec.Combinator ((<?>))
 import qualified "attoparsec" Data.Attoparsec.Combinator as P (lookAhead)
 import qualified "attoparsec" Data.Attoparsec.Text as P
 
-import Logic.Judge.Parser (Parseable, parser, parserEmbedded)
 import qualified Logic.Judge.Formula.Datastructure as F
+
+--------------------------------------------------------------------------------
+-- * Parser typeclass
+
+class Parseable a where
+
+    -- | A parser for type @a@.
+    parser :: P.Parser a
+
+    -- | In some cases, the parser for a type must be embellished with some
+    -- other symbols when it occurs as part of a parser of a different type,
+    -- but not when it occurs on its own. This parser allows us to specify this
+    -- alternative.
+    parserEmbedded :: P.Parser a
+    parserEmbedded = parser
+
+
+instance Parseable f => Parseable [f] where
+    parser = comments *> P.many1 (parser <* comments)
 
 
 instance Parseable F.Classical where
@@ -73,6 +95,11 @@ instance Parseable e => Parseable (F.Ambiguous (F.Term e)) where
         [ F.Formula <$> parser
         , F.Extension <$> parser 
         , F.MarkedFormula <$> parser ]
+
+
+-- | Read a text into a parseable structure.
+parse :: (Monad m, Parseable a) => Text -> m a
+parse = either fail return . P.parseOnly (parser <* P.endOfInput)
 
 
 -------------------------------------------------------------------------------
@@ -241,9 +268,9 @@ justification = expression operators base
 
     where
     operators = 
-        [   [ Prefix  (oneOf  ['!']     >> return (F.ProofChecker)) ]
-        ,   [ Infix L (oneOf  ['+']     >> return (F.Sum)) ]
-        ,   [ Infix L (oneOf  ['*','⋅'] >> return (F.Application)) ]
+        [   [ Prefix  (oneOf  ['!']         >> return (F.ProofChecker)) ]
+        ,   [ Infix L (oneOf  ['+']         >> return (F.Sum)) ]
+        ,   [ Infix L (oneOf  ['*','⋅','·'] >> return (F.Application)) ]
         ]
 
     base =  (toAtom <$> identifier)
@@ -301,3 +328,10 @@ marked p = F.Marked <$> P.option [] marks <*> p where
             *> P.sepBy' identifier (spaced $ P.char ',') <* 
             (spaced $ P.char ']')
 
+
+-- | Parser for comments.
+comments :: P.Parser ()
+comments = 
+    P.skipSpace *> P.skipMany (
+        P.char '#' *> P.manyTill P.anyChar P.endOfLine <* P.skipSpace
+    )

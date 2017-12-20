@@ -19,12 +19,12 @@ import qualified "optparse-applicative" Options.Applicative as O
 import qualified "attoparsec" Data.Attoparsec.Text as P
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 
-import Logic.Judge.Parser (parse, parser, Parseable)
+import Logic.Judge.Formula.Parser (parse, Parseable)
 
 data Arguments = Arguments 
     { verbose      :: Bool
-    , _assumptions :: [String]
     , _goals       :: [String]
+    , _assumptions :: [String]
     , outfile      :: Maybe String
     , format       :: Format
     , infile       :: String
@@ -42,72 +42,75 @@ arguments = O.execParser prog
 
     where
 
-    prog =  O.info
-        (   O.helper <*> options )
-        (   O.fullDesc 
-            <>  O.progDescDoc 
-                (Just $
-                    PP.empty PP.<$$>
-                    (PP.fillSep . map PP.text . words $ description) PP.<$$>
-                    PP.empty PP.<$$> 
-                    (PP.underline . PP.text $ "Example call:") PP.<$>
-                    (PP.indent 4 $ PP.text "judge J.yml < formulas.txt")
-                )
-            <>  O.header "judge - Decision procedure for justification logic" 
-            <>  O.footer "2017, Utrecht University"
+    prog = O.info
+        (  O.helper <*> options )
+        (  O.fullDesc 
+        <> O.progDescDoc (return description)
+        <> O.header "judge - Decision procedure for formal logics" 
+        <> O.footer "2017, Utrecht University"
         )
 
     options = Arguments
-        <$> O.switch
-            (   O.short 'v' <> O.long "verbose"
-            <>  O.help "Show diagnostics"
+        <$> O.switch 
+            (  O.short 'v'
+            <> O.long "verbose"
+            <> O.help "Show diagnostics"
+            ) 
+        <*> O.many
+            ( O.strOption
+                ( O.short 'g'
+                <> O.long "goal"
+                <> O.metavar "EXPR"
+                <> O.help "Set target formula(s). May be provided multiple \n\
+                          \times (default: standard input)"
+                )
             )
-        <*> O.many ( O.strOption
-            (   O.short 'a' <> O.long "assumption" <> O.metavar "EXPR"
-            <>  O.help "Add assumption(s). May be provided multiple times"
+        <*> O.many
+            ( O.strOption
+                ( O.short 'a'
+                <> O.long "assumption"
+                <> O.metavar "EXPR"
+                <> O.help "Add assumption(s). May be provided multiple times"
+                )
             )
-            )
-        <*> O.many ( O.strOption
-            (   O.short 'g' <>  O.long "goal" <> O.metavar "EXPR"
-            <>  O.help "Set goal formula(s). Will be read from standard \n\
-                       \input if none are given. May be provided multiple \n\
-                       \times"
-            )
-            )
-        <*> ( O.optional $ O.strOption
-            (   O.short 'o' <>  O.long "output" <> O.metavar "PATH"
-            <>  O.help "Output file (default: standard input)"
-            )
+        <*> O.optional
+            ( O.strOption
+                (  O.short 'o'
+                <> O.long "output"
+                <> O.metavar "PATH"
+                <> O.help "Output file (default: standard output)"
+                )
             )
         <*> ( O.option O.auto
-            (   O.short 'f' <>  O.long "format" <> O.metavar "FMT"
-            <>  O.value Plain <> O.showDefault
-            <>  O.help "Output format"
+                (  O.short 'f' 
+                <> O.long "format" 
+                <> O.metavar "FORMAT"
+                <> O.value Plain 
+                <> O.showDefault
+                <> O.help "Output format"
+                )
             )
-            )
-        <*> ( O.argument O.str (O.metavar "LOGIC") )
+        <*> ( O.argument O.str (O.metavar "LOGIC"))
 
-    description = "Decides whether given logical formulas are provable in \n\
-                  \some logical system. Takes a YAML or JSON file as input. \n\
-                  \Refer to README for more information."
+    description :: PP.Doc
+    description = 
+        (PP.line <>) 
+        . PP.fillSep 
+        . map PP.text 
+        . words 
+        $ "Decides whether given logical formulas are provable in some \n\
+          \logical system. Takes a YAML or JSON file as input. Refer to \n\
+          \README.md for more information."
 
 
 -- | Read additional assumptions. As obtained from command line arguments.
 assumptions :: Parseable f => Arguments -> IO [f]
-assumptions arg = (parse parser . pack) `mapM` _assumptions arg
+assumptions arg = mapM (parse . pack) (_assumptions arg)
 
 
 -- | Obtain goal formulas. Taken from command line arguments or standard input.
 goals :: Parseable f => Arguments -> IO [f]
 goals arg = case _goals arg of
-    [] -> getContents >>= parse (comment *> P.many1 (parser <* comment))
-        --putStrLn "Reading goal formulas from standard input (end: CTRL-D)"
-    xs -> (parse parser . pack) `mapM` xs
-
-    where
-    comment :: P.Parser ()
-    comment = 
-        P.skipSpace *> P.skipMany (
-            P.char '#' *> P.manyTill P.anyChar P.endOfLine <* P.skipSpace
-        )
+    [] -> getContents >>= parse
+    xs -> mapM (parse . pack) xs
 

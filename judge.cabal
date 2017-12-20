@@ -19,7 +19,6 @@ library
     hs-source-dirs:     src
     exposed-modules:    Logic.Judge.CLI
                       , Logic.Judge.PointedList
-                      , Logic.Judge.Parser
                       , Logic.Judge.Printer
                       , Logic.Judge.LaTeX
                       , Logic.Judge.Formula

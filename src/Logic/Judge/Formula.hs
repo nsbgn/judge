@@ -13,7 +13,6 @@ module Logic.Judge.Formula
     , Extension
     ) where
 
-import Logic.Judge.Parser
 import Logic.Judge.Printer
 import Logic.Judge.Formula.Datastructure
 import Logic.Judge.Formula.Parser

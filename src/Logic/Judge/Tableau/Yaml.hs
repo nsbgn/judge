@@ -22,7 +22,6 @@ import qualified "yaml" Data.Yaml as Y
 import qualified "aeson" Data.Aeson.Types as Y (typeMismatch, withText, withObject)
 
 import Logic.Judge.Tableau.Specification (Ref((:=)))
-import Logic.Judge.Parser (Parseable, parser, parse)
 import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Tableau.Specification as T
 
@@ -136,15 +135,15 @@ instance (F.Extension ext, Y.FromJSON primitive) => Y.FromJSON (T.Constraint pri
         <|> fail "expected constraint or generator"
 
 
-instance Parseable ext => Y.FromJSON (F.Ambiguous (F.Term ext)) where
-    parseJSON = Y.withText "term" $ parse parser
+instance F.Parseable ext => Y.FromJSON (F.Ambiguous (F.Term ext)) where
+    parseJSON = Y.withText "term" F.parse
 
 
-instance Parseable ext => Y.FromJSON (F.Formula ext) where
-    parseJSON = Y.withText "formula" $ parse parser
+instance F.Parseable ext => Y.FromJSON (F.Formula ext) where
+    parseJSON = Y.withText "formula" F.parse
 
 
-instance Parseable term => Y.FromJSON (F.Marked term) where
-    parseJSON = Y.withText "marked formula" $ parse parser
+instance F.Parseable term => Y.FromJSON (F.Marked term) where
+    parseJSON = Y.withText "marked formula" F.parse
 
 
