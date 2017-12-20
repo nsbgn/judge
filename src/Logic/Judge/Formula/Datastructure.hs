@@ -133,20 +133,13 @@ negation x = Negation x
 -- if there is a formula φ in one of the sets such that there is a formula 
 -- φ → ⊥ or a formula ¬φ in the other set.
 --
--- To test if a branch is really closed, it is only necessary to check if the
--- *newly added* formulas conflict with the *remaining* formulas; it's not
--- necessary to check for conflict in all formulas. Since there will only be a
--- few formulas new, we will assume that the first argument is smaller than the
--- second.
---
 -- Assume that ys is NOT self-contradicting.
 contradict :: (Traversable t1, Traversable t2, Eq ext) 
            => t1 (Formula ext) 
            -> t2 (Formula ext) 
            -> Bool
 contradict xs ys = 
-    Constant False `elem` xs ||
-    any (`elem` ys) (fmap negation xs)
+    Constant False `elem` xs || any (`elem` ys) (fmap negation xs)
 
 
 

@@ -74,8 +74,6 @@ data Branch ext = Branch
     -- ^ Which formulas still lie unprocessed on the branch?
     , inactives :: [BranchFormula ext]
     -- ^ Which formulas have been processed on the branch?
-    , closed :: Bool
-    -- ^ Is this branch closed?
     , new :: [BranchFormula ext]
     -- ^ Which formulas were the last to be introduced?
     , counter :: Int
@@ -99,10 +97,6 @@ data Match ext = Match
     }
 
 
--- | Obtain all formulas on the branch, both active and inactive.
-formulas :: Branch ext -> [BranchFormula ext]
-formulas π = maybe [] L.asList (actives π) ++ inactives π
-
 
 
 -- | Determine if adding some new formulas will close the branch by causing a
@@ -113,25 +107,37 @@ formulas π = maybe [] L.asList (actives π) ++ inactives π
 -- for the moment.
 --
 -- TODO: Also say WHICH formulas contradict.
-closes :: (Eq ext, Traversable t1, Traversable t2, Traversable t3) 
-       => t1 (BranchFormula ext) 
-       -> t2 (BranchFormula ext) 
-       -> t3 (F.Formula ext) 
+--
+-- | Determine if the most recent additions to the branch cause the branch to
+-- close by causing a contradiction.
+--
+--
+--- To test if a branch is really closed, it is only necessary to check if the
+-- *newly added* formulas conflict with the *remaining* formulas; it's not
+-- necessary to check for conflict in all formulas. Since there will only be a
+-- few formulas new, we will assume that the first argument is smaller than the
+-- second.-
+closes :: Eq ext 
+       => TableauSettings ext 
+       -> Branch ext 
        -> Bool
-closes new old assumptions = 
-    fmap strip new `F.contradict` fmap strip new ||
-    fmap strip new `F.contradict` assumptions ||
-    fmap strip new `F.contradict` fmap strip old
-
-    where
-    strip :: BranchFormula ext -> F.Formula ext
-    strip (_ := (F.Marked m x)) = if any isNegator m 
-        then F.negation x 
-        else x
-
-    isNegator :: String -> Bool
-    isNegator = (`elem` ["-", "¬", "~", "×", "x", "false", "f"]) . map toLower
+closes κ@(TableauSettings {assumptions}) 
+       π@(Branch {new, actives, inactives}) =
+   
+    any (F.contradict new') [ new'
+                            , fmap strip $ maybe [] L.asList actives
+                            , assumptions
+                            , fmap strip inactives ]
     
+    where
+    new' = fmap strip new
+
+    strip :: BranchFormula ext -> F.Formula ext
+    strip (_ := (F.Marked m x)) = 
+        if any (== "F") m 
+            then F.negation x 
+            else x
+
 
 
 -- | Take the first option from a list of options.
@@ -255,7 +261,6 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives
                 , new = conjunction
-                , closed = closes conjunction (formulas π) assumptions
                 , counter = counter + length conjunction
                 }
             | conjunction <- zipWith (:=) [counter..] <$> disjunction 
@@ -273,7 +278,6 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives
                 , new = conjunction
-                , closed = closes conjunction (formulas π) assumptions
                 , counter = counter + length conjunction
                 , rulesA = L.update ρF rule'
                 }
@@ -295,7 +299,7 @@ subtableau κ = greedy . subtableaux
     -- | Nondeterministically and recursively expand the given branch into its 
     -- subtableaux.
     subtableaux :: Branch ext -> [Tableau ext]
-    subtableaux π@(Branch {new}) = Node new <$> case closed π of
+    subtableaux π@(Branch {new}) = Node new <$> case closes κ π of
         True -> return Closure
         False -> do
             -- Pick a possible set of branch expansions
@@ -308,10 +312,10 @@ subtableau κ = greedy . subtableaux
 
 
 
--- | A non-essential step: make the reference numbers on the formulas 
--- heterogeneous, even if they are on different branches. This is done in a 
--- single step at the end so that we don't have the mental (and computational) 
--- burden of carrying a State monad everywhere. 
+-- | A non-essential post-processing step on the tableau: make the reference 
+-- numbers on the formulas heterogeneous, even if they are on different 
+-- branches. This is done in a single step at the end so that we don't have 
+-- the mental (and computational) burden of carrying a State monad everywhere. 
 renumber :: Tableau ext -> Tableau ext
 renumber = flip ST.evalState (1, []) . renumber'
 
@@ -341,14 +345,14 @@ renumber = flip ST.evalState (1, []) . renumber'
         return θ'
 
 
--- | A non-essential step: If the root formula is not exactly the input
--- formula, add an explicit simplification step to the proof to show what
--- happened.
-explicitRewrite :: F.Extension ext 
-                => F.Formula ext 
-                -> Tableau ext 
-                -> Tableau ext
-explicitRewrite φ θ@(Node [i := F.Marked m ψ] _) = 
+-- | A non-essential post-processing step on the tableau: if the root formula 
+-- is not exactly equal to the input formula, there was supposedly a rewriting
+-- step. Add this step to the tableau explicitly, to show what happened.
+rewritten :: F.Extension ext 
+          => F.Formula ext 
+          -> Tableau ext 
+          -> Tableau ext
+rewritten φ θ@(Node [i := F.Marked m ψ] _) = 
     if φ == ψ
         then θ
         else Node [subtract 1 i := F.Marked m φ] 
@@ -365,7 +369,7 @@ decide :: forall ext . (F.Extension ext)
        -> F.Formula ext
        -> Result (F.Formula ext) (Tableau ext)
 decide system goal =
-    let postprocess = renumber . explicitRewrite goal
+    let postprocess = renumber . rewritten goal
         result = uncurry subtableau (initial system goal)
     in  maybe (Failure goal) (Success goal) $ postprocess <$> result 
 
@@ -396,7 +400,6 @@ initial system goal = (initκ, initπ)
         { actives = return root
         , inactives = []
         , rulesA = L.fromList rulesA
-        , closed = closes root root (TS.assumptions system)
         , new = L.toList root
         , counter = 1
         }
