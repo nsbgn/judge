@@ -9,7 +9,7 @@ Stability   : experimental
 {-# LANGUAGE PackageImports #-}
 module Logic.Judge.Writer where
 
-import "base" GHC.IO.Handle (Handle)
+import "base" GHC.IO.Handle (Handle, hIsTerminalDevice)
 import "base" GHC.IO.Handle.FD (stdout, stderr)
 import "bytestring" Data.ByteString (hPut)
 import "terminal-size" System.Console.Terminal.Size (size, width)
@@ -52,10 +52,11 @@ writeFooter file format = case format of
 -- that this means that redirecting stdout to a file will include ANSI
 -- colorisation codes.
 write :: Handle -> PP.Doc -> IO ()
-write file = 
-    if file == stdout || file == stderr
-        then prettyprint file
-        else export file 
+write file doc = do
+    terminal <- hIsTerminalDevice file
+    if terminal
+        then prettyprint file doc
+        else plainprint file doc
 
 
 -- | Print ANSI-colorised document to file handle.
@@ -70,8 +71,8 @@ prettyprint file doc = do
 
 
 -- | Print UTF-8 encoded, plain document to file handle.
-export :: Handle -> PP.Doc -> IO ()
-export file doc = hPut file 
+plainprint :: Handle -> PP.Doc -> IO ()
+plainprint file doc = hPut file 
     . UTF8.fromString
     . flip PP.displayS "" 
     . (PP.renderPretty 1.0 255) 

@@ -13,25 +13,26 @@ import Prelude hiding (getContents)
 import "text" Data.Text (Text, pack, unpack)
 import "text" Data.Text.IO (getContents)
 
+import "base" System.Info (os)
 import "base" System.IO (IOMode(WriteMode))
 import "base" Data.Monoid ((<>))
 import "base" Control.Applicative ((*>),(<*))
 import "base" Control.Monad (void)
-import "base" GHC.IO.Handle (Handle)
-import "base" GHC.IO.Handle.FD (stdout, openFile)
+import "base" GHC.IO.Handle (Handle, hIsTerminalDevice)
+import "base" GHC.IO.Handle.FD (stdout, stderr, stdin, openFile)
 import qualified "optparse-applicative" Options.Applicative as O
 import qualified "attoparsec" Data.Attoparsec.Text as P
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 
-import Logic.Judge.Writer (Format(Plain,LaTeX))
 import Logic.Judge.Formula.Parser (parse, Parseable)
+import qualified Logic.Judge.Writer as W
 
 data Arguments = Arguments 
     { verbose      :: Bool
     , _goals       :: [String]
     , _assumptions :: [String]
     , _outfile     :: Maybe String
-    , format       :: Format
+    , format       :: W.Format
     , infile       :: String
     }
 
@@ -85,7 +86,7 @@ arguments = O.execParser prog
                 (  O.short 'f' 
                 <> O.long "format" 
                 <> O.metavar "FORMAT"
-                <> O.value Plain 
+                <> O.value W.Plain 
                 <> O.showDefault
                 <> O.help "Output format"
                 )
@@ -116,6 +117,24 @@ assumptions arg = mapM (parse . pack) (_assumptions arg)
 -- | Obtain goal formulas. Taken from command line arguments or standard input.
 goals :: Parseable f => Arguments -> IO [f]
 goals arg = case _goals arg of
-    [] -> getContents >>= parse
+    [] -> do
+        terminal <- hIsTerminalDevice stdin
+        if terminal
+            then W.prettyprint stderr notification
+            else return ()
+        getContents >>= parse
     xs -> mapM (parse . pack) xs
 
+    where
+    notification :: PP.Doc
+    notification = 
+        PP.text "Reading from standard input" PP.<+>
+        PP.lparen PP.<>
+        eof PP.<+>
+        PP.text "to finish" PP.<>
+        PP.rparen
+
+    eof :: PP.Doc
+    eof = PP.bold . PP.text $ case os of
+        "windows" -> "CTRL-Z"
+        _ -> "CTRL-D"
