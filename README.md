@@ -36,8 +36,7 @@ x·y:B`, construct the proof as follows:
 
 If no target(s) are given, formulas are read off the standard input. By 
 default, the result is written as plain text to the standard output. Add `-o 
-file.tex -f LaTeX` to obtain LaTeX code that can be passed to 
-[XeTeX](http://xetex.sourceforge.net/). 
+file.tex -f LaTeX` to obtain the output in LaTeX format. 
 
 An example run can be found in [example.sh](example.sh).
 

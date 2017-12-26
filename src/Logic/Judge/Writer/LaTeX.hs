@@ -12,6 +12,8 @@ Stability   : experimental
 module Logic.Judge.Writer.LaTeX where
 
 import Prelude hiding ((<$>))
+import "texmath" Text.TeXMath.TeX (renderTeX)
+import "texmath" Text.TeXMath.Unicode.ToTeX (getTeXMath)
 import "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen ((<>), (<+>), (</>), (<$>), (<$$>), (<//>))
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 
@@ -52,11 +54,12 @@ instance LaTeX a => LaTeX (Ref Int a) where
 instance LaTeX a => LaTeX (F.Marked a) where
     latex (F.Marked m φ) = 
         cmd "marked" (
-            PP.encloseSep PP.lbrace PP.rbrace PP.comma $ map PP.text m
+            PP.encloseSep PP.lbrace PP.rbrace PP.comma $ map (PP.text . unicode2tex) m
         ) <+> latex φ
 
 instance Printable ext => LaTeX (F.Formula ext) where
-    latex = pretty
+    latex = PP.string . unicode2tex . show . PP.plain . pretty
+
 
 instance (Printable ext) => LaTeX (T.Tableau ext) where
     latex θ = 
@@ -71,7 +74,7 @@ instance (Printable ext) => LaTeX (T.Tableau ext) where
                 PP.string ", closed"
             T.Application name refs θs -> 
                 PP.string ", apply=$\\sf " <> 
-                PP.string name <+> 
+                PP.string (unicode2tex name) <+> 
                 PP.string "$\\ " <> 
                 cmd "n" (PP.tupled $ map PP.int refs) <$> 
                 PP.indent 4 (PP.vsep $ map latex' θs)
@@ -95,7 +98,7 @@ cmd s doc = PP.char '\\' <> PP.string s <> PP.lbrace <> doc <> PP.rbrace
 latexHeader :: PP.Doc
 latexHeader = PP.vsep $ map PP.string 
     [ "\\documentclass[multi=result,margin=1cm]{standalone}"
-    , "\\usepackage{tikz,forest,color,unicode-math}"
+    , "\\usepackage{forest,color}"
     , "\\forestset{"
     , "tableau/.style={"
     , "    for tree={"
@@ -116,7 +119,6 @@ latexHeader = PP.vsep $ map PP.string
     , "apply/.style={"
     , "    for last={"
     , "        edge label={"
-    , "            %node[near end, above right, xshift=0.1cm,font=\\small]{#1}"
     , "            node[very near end, anchor=south west, xshift=0.1cm, font=\\small]{#1}"
     , "        }"
     , "    }"
@@ -133,3 +135,16 @@ latexHeader = PP.vsep $ map PP.string
 latexFooter :: PP.Doc
 latexFooter = PP.text "\\end{document}"
 
+
+-- | Convert Unicode strings (φ → ψ) to LaTeX (\psi \rightarrow \phi).
+unicode2tex :: String -> String
+unicode2tex str = stripHardSpaces $ getTeXMath str [] >>= flip renderTeX ""
+
+    where
+    -- Some hacks to change TeXMath's output to what I need
+    stripHardSpaces :: String -> String
+    stripHardSpaces string = case string of
+        ('\\':'n':'e':'g':xs) -> "\\neg " ++ xs
+        ('\\':' ':xs) -> ' ':stripHardSpaces xs
+        (x:xs) -> x:stripHardSpaces xs
+        [] -> []

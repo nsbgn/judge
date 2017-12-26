@@ -43,6 +43,7 @@ library
                       , ansi-wl-pprint >=0.6.7.3 && <0.6.8.1
                       , terminal-size ==0.3.2.1
                       , utf8-string ==1.0.1.1
+                      , texmath >=0.10.1 && <0.11.0
     default-language:   Haskell2010
 
 

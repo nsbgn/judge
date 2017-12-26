@@ -6,7 +6,7 @@ function printlatex {
         -f LaTeX \
         -o goals.tex \
         "logic/j0-new.yml" < formulas.txt \
-    && xelatex goals.tex
+    && pdflatex goals.tex
 }
 
 function printterminal {
