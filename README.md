@@ -15,17 +15,9 @@ After cloning the repository, the recommended installation method is through
     stack build
     stack install judge
 
-To install with [Cabal](https://www.haskell.org/cabal/users-guide/) instead, 
-do:
- 
-    cabal sandbox init
-    cabal configure
-    cabal build
-    cabal install
-
-Alternatively, `judge` may be run in the interpreter via `runhaskell -i'src' 
-app/Main.hs`. 
-
+Alternatively, `judge` may be installed through 
+[Cabal](https://www.haskell.org/cabal/users-guide/), or run in the interpreter 
+via `runhaskell -i'src' app/Main.hs`.
 
 
 Usage

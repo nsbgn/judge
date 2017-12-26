@@ -9,7 +9,8 @@ import "text" Data.Text (Text, pack, unpack)
 import qualified "yaml" Data.Yaml as Y
 import qualified "unordered-containers" Data.HashMap.Strict as M2
 
-import qualified Logic.Judge.CLI as CLI
+import qualified CLI
+
 import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Prover.Yaml as TY
 import qualified Logic.Judge.Prover.Tableau as T

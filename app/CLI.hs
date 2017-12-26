@@ -1,13 +1,13 @@
 -- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
-Module      : Logic.Judge.CLI
+Module      : CLI
 Description : Options to judge's command-line interface.
 License     : GPL-3
 Stability   : experimental
 -}
 
 {-# LANGUAGE PackageImports #-}
-module Logic.Judge.CLI where
+module CLI where
 
 import Prelude hiding (getContents)
 import "text" Data.Text (Text, pack, unpack)

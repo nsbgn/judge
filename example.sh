@@ -10,7 +10,7 @@ function printlatex {
 }
 
 function printterminal {
-    runhaskell -i'src' app/Main.hs \
+    stack runhaskell -- -i'src' -i'app' app/Main.hs \
         -g "x : A & y:(A->B) -> y*(x+x') : B" \
         "logic/j0-new.yml"
 }
@@ -22,4 +22,4 @@ function comparesystems {
     done
 }
 
-printlatex
+printterminal
