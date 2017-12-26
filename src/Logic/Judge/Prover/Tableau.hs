@@ -517,7 +517,7 @@ decide :: forall ext . (F.Extension ext)
        -> F.Formula ext
        -> Result (F.Formula ext) (Tableau ext)
 decide system goal =
-    let postprocess = renumber . rewritten goal
+    let postprocess = renumber 1 . rewritten goal
         result = uncurry expand (initial system goal)
     in  maybe (Failure goal) (Success goal) $ postprocess <$> result 
 
@@ -530,8 +530,10 @@ decide system goal =
 -- numbers on the formulas heterogeneous, even if they are on different 
 -- branches. This is done in a single step at the end so that we don't have 
 -- the mental (and computational) burden of carrying a State monad everywhere. 
-renumber :: Tableau ext -> Tableau ext
-renumber = flip ST.evalState (1, []) . renumber'
+renumber :: Int 
+         -> Tableau ext 
+         -> Tableau ext
+renumber start = flip ST.evalState (start, []) . renumber'
 
     where
     -- The renumbering is done by keeping track of the number of times we
@@ -541,21 +543,20 @@ renumber = flip ST.evalState (1, []) . renumber'
     renumber' :: Tableau ext -> ST.State (Int, [(Int,Int)]) (Tableau ext)
     renumber' tableau = do
         θ' <- case tableau of
-            Closure -> do
-                ST.modify (\(δ, assoc) -> (δ-1, tail assoc))
+            Closure -> 
                 return tableau
             Node φs θ -> do
                 φs' <- forM φs $ \(i := φ) -> do
-                    (δ, assoc) <- ST.get
-                    let j = i + δ
-                    ST.put (δ, (i,j):assoc)
+                    (j, assoc) <- ST.get
+                    ST.put (j+1, (i,j):assoc)
                     return $ j := φ
-                Node φs' <$> renumber' θ
+                ν <- Node φs' <$> renumber' θ
+                ST.modify (fmap . drop $ length φs')
+                return ν
             Application name refs θs -> do
-                (δ, assoc) <- ST.get
+                (_, assoc) <- ST.get
                 refs' <- forM refs $ return . fromJust . flip lookup assoc
                 Application name refs' <$> mapM renumber' θs
-        ST.modify (\(δ, assoc) -> (δ+1, assoc))
         return θ'
 
 
