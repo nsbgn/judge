@@ -1,18 +1,18 @@
 #!/bin/bash
 
 function printlatex {
-    judge \
+    judge J \
         -a "c:(A->(B->A))" \
         -f LaTeX \
         -o goals.tex \
-        "logic/j0-new.yml" < formulas.txt \
+        "logic/J.yml" < formulas.txt \
     && pdflatex goals.tex
 }
 
 function printterminal {
-    stack runhaskell -- -i'src' -i'app' app/Main.hs \
+    stack runhaskell -- -i'src' -i'app' -i'app/autogen' app/Main.hs \
         -g "x : A & y:(A->B) -> y*(x+x') : B" \
-        "logic/j0-new.yml"
+        "logic/J.yml"
 }
 
 function comparesystems {

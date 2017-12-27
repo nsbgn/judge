@@ -16,14 +16,17 @@ import "text" Data.Text.IO (getContents)
 import "base" System.Info (os)
 import "base" System.IO (IOMode(WriteMode))
 import "base" Data.Monoid ((<>))
-import "base" Control.Applicative ((*>),(<*))
+import "base" Control.Applicative ((*>),(<*),(<|>))
 import "base" Control.Monad (void)
 import "base" GHC.IO.Handle (Handle, hIsTerminalDevice)
 import "base" GHC.IO.Handle.FD (stdout, stderr, stdin, openFile)
+import "filepath" System.FilePath ((</>))
+import qualified "directory" System.Directory as D
 import qualified "optparse-applicative" Options.Applicative as O
 import qualified "attoparsec" Data.Attoparsec.Text as P
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 
+import Paths_judge (getDataDir) -- automatically generated
 import Logic.Judge.Formula.Parser (parse, Parseable)
 import qualified Logic.Judge.Writer as W
 
@@ -33,7 +36,7 @@ data Arguments = Arguments
     , _assumptions :: [String]
     , _outfile     :: Maybe String
     , format       :: W.Format
-    , infile       :: String
+    , _infile      :: String
     }
 
 
@@ -102,6 +105,17 @@ arguments = O.execParser prog
         $ "Decides whether given logical formulas are provable in some \n\
           \logical system. Takes a YAML or JSON file as input. Refer to \n\
           \README.md for more information."
+
+
+-- | Find input file from standard locations (current directory, 
+-- ~/.local/share, the data directory that cabal installed files to).
+infile :: Arguments -> IO String
+infile args = do
+    cwd <- D.getCurrentDirectory
+    xdg <- D.getXdgDirectory D.XdgData "judge"
+    dat <- getDataDir
+    file <- D.findFile [cwd, xdg, dat </> "logic"] (_infile args)
+    maybe (return $ _infile args) return file
 
 
 -- | Obtain and open file handle for output file.

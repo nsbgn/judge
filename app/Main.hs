@@ -21,7 +21,7 @@ import qualified Logic.Judge.Writer as W
 main :: IO ()
 main = do
     arg <- CLI.arguments
-    yaml <- deserialiseGeneric (CLI.infile arg)
+    yaml <- CLI.infile arg >>= deserialiseGeneric
 
     case yaml .: "logic" of
         "justification" -> case yaml .: "system" of
