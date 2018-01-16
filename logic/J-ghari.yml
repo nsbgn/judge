@@ -2,7 +2,9 @@ logic: justification
 system: tableau
 name: J₀
 description: |
-    This system stays faithful to the one described in Ghari 2016.
+    This system stays mostly faithful to the one described in Ghari 2016. The 
+    CSr rule was not present in the original; it emulates closure upon
+    encountering [F] φ on the branch for some φ ∊ CS.
 rules:
     - name: "Te"
       consume: ["[T] T:A"]
@@ -43,7 +45,14 @@ rules:
               - match: "S * T"
                 with: subterms
                 in: root
-
+    - name: "CSr"
+      consume: []
+      produce:
+          - ["[T] A"]
+      generate:
+          match: "A"
+          with: all
+          in: assumptions
     - name: "PBe"
       consume: []
       produce:
@@ -69,3 +78,4 @@ rules:
           with: [subterms, formulas]
           in: 
               union: [root, assumptions]
+

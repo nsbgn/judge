@@ -27,4 +27,12 @@ rules:
           with: [subterms, formulas]
           in:
               union: [root, assumptions]
+    - name: "CSr"
+      consume: []
+      produce:
+          - ["[T] A"]
+      generate:
+          match: "A"
+          with: all
+          in: assumptions
 assumptions: []

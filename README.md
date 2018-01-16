@@ -19,6 +19,7 @@ Alternatively, `judge` may be installed through
 (see [example.sh](example.sh)).
 
 
+
 Usage
 -------------------------------------------------------------------------------
 
@@ -28,14 +29,20 @@ system and the logical family (although at the moment, only the respective
 values `tableau` and `justification` are recognised). It also provides the 
 rules of inference. See the [logic/](logic) directory for examples.
 
-Given a logical system `J.yml` and a target formula, say, `x:(A→B) ∧ y:A → 
-x·y:B`, construct the proof as follows:
+If no target formula(s) are provided via `-g`, formulas are read off the 
+standard input. If no output file is provided via `-o`, the result is written 
+to the standard output. By default, the format is plain text; add `-f LaTeX` 
+to obtain LaTeX code instead. 
 
-    judge -g "x:(A->B) & y:A -> x*y:B" J.yml
+For example, the following will construct proofs for [theorems](formulas.txt) 
+of the logic [J](logic/J.yml) and produce a PDF file from them:
 
-If no target(s) are given, formulas are read off the standard input. By 
-default, the result is written as plain text to the standard output. Add `-f 
-LaTeX` to obtain the output in LaTeX format. 
+    judge logic/J.yml \
+        -a "c:(A->B->A)" \
+        -f LaTeX \
+         < formulas.txt \
+         | pdflatex
+
 
 
 Contributing
