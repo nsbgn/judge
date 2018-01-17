@@ -17,9 +17,10 @@ import "base" Data.Maybe (listToMaybe, mapMaybe, catMaybes, fromJust)
 import "base" Data.List (intersect, partition, lookup, nub, sortBy, (\\))
 import "base" Data.Function (on)
 import "base" Control.Applicative (Alternative, empty, (<|>))
-import "base" Control.Monad (foldM, guard, forM, join)
+import "base" Control.Monad (foldM, guard, forM, forM_, join)
 import qualified "containers" Data.Tree as R
 import qualified "containers" Data.Map as M
+import qualified "containers" Data.Set as S
 import qualified "transformers" Control.Monad.Trans.State.Lazy as ST
 
 import qualified Logic.Judge.PointedList as L
@@ -530,7 +531,7 @@ decide :: forall ext . (F.Extension ext)
        -> F.Formula ext
        -> Result (F.Formula ext) (Tableau ext)
 decide system goal =
-    let postprocess = renumber 1 . rewritten goal
+    let postprocess = renumber 1 . rewritten goal . shorten
         result = uncurry expand (initial system goal)
     in  maybe (Failure goal) (Success goal) $ postprocess <$> result 
 
@@ -538,6 +539,53 @@ decide system goal =
 
 -------------------------------------------------------------------------------
 -- * Post-processing
+
+
+-- | A non-essential post-processing step on the tableau: eliminate rule
+-- applications that do not produce any formulas that are involved in closing
+-- any branch. 
+--
+-- Note that this will not eliminate all unnecessary applications (let alone
+-- find the shortest proof) — it will only remove rules that are not involved
+-- in any closure. For example, for justification logic, if 'c:φ' and 'd:ψ' 
+-- are in the CS but only 'd:ψ' has to be introduced via CSr, then this will
+-- remove any redundant CSr application --- but if a formula is introduced via
+-- a restricted cut, it could do nothing because the cut-formula IS involved in
+-- the closure of a branch, even though it was pointless to do the cut in the
+-- first place. It would be nice to think of a stronger method.
+shorten :: Tableau ext 
+        -> Tableau ext
+shorten = flip ST.evalState S.empty . shorten'
+
+    where
+    -- | The boolean keeps track of whether the application above produced
+    -- anything helpful; the set keeps track of relevant formula references.
+    -- It is a bit opaque and not as succinct as I think it could be --- a
+    -- rewrite is welcome.
+    shorten' :: Tableau ext -> ST.State (S.Set Int) (Tableau ext)
+    shorten' tableau = case tableau of
+        Closure refs -> do
+            ST.modify $ \s -> foldr S.insert s refs
+            return tableau
+        Application name refs θs -> do
+            (relevances, θs') <- fmap unzip . forM θs $ \(Node φs θ) -> do
+                θ' <- shorten' θ
+                relevantRefs <- ST.get 
+                relevant <- forM φs $ \(i := _) -> do
+                    if S.member i relevantRefs
+                        then ST.modify (S.delete i) >> return True
+                        else return False
+                return (or relevant, Node φs θ')
+            if or relevances
+            then do
+                ST.modify (\s -> foldr S.insert s refs) 
+                return $ Application name refs θs'
+            else case θs' of
+                (Node φs θ'' : _) -> return θ''
+                _ -> error "This should not be possible."
+        Node φs θ -> Node φs <$> shorten' θ
+
+
 
 -- | A non-essential post-processing step on the tableau: make the reference 
 -- numbers on the formulas heterogeneous, even if they are on different 
