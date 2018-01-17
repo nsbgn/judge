@@ -104,19 +104,15 @@ latexHeader = PP.vsep $ map PP.string
     , "\\forestset{"
     , "tableau/.style={"
     , "    for tree={"
-    , "        parent anchor=south,"
-    , "        child anchor=north,"
-    , "        s sep=1cm,"
-    , "        l sep=0.7cm,"
-    , "        inner sep=0.1cm"
+    , "        parent anchor=south, child anchor=north,"
+    , "        s sep=0.1cm, l sep=0.8cm, inner sep=0.2cm"
     , "    },"
     , "},"
     , "closed/.style={"
-    , "    label=below:{$\\otimes$ #1}"
+    , "    fit=band, label=below:{$\\otimes$ #1},"
     , "},"
     , "clamp/.style={"
-    , "    no edge,"
-    , "    before computing xy={l=\\baselineskip}"
+    , "    no edge, before computing xy={l=\\baselineskip}"
     , "},"
     , "apply/.style={"
     , "    for last={"
@@ -131,6 +127,17 @@ latexHeader = PP.vsep $ map PP.string
     , "\\begin{document}"
     ]
 
+{-
+  declare toks register=closure,
+  declare count register=level to prefix,
+  prefix=X-,
+  level to prefix=1,
+  delay={
+    for nodewalk/.process=Rw Rw
+    {level to prefix}{level=#1}
+    {prefix}{+content=#1}
+  }
+-}
 
 
 -- | Footer for LaTeX output.
