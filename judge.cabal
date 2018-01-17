@@ -11,6 +11,7 @@ maintainer:             ns@slak.ws
 category:               Logic
 build-type:             Simple
 extra-source-files:     README.md
+                      , CHANGELOG.md
                       , formulas.txt
 data-files:             logic/J.yml
                       , logic/LP.yml
