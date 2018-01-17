@@ -1,5 +1,5 @@
 name:                   judge
-version:                0.1.0.0
+version:                0.1.1.0
 synopsis:               Tableau-based theorem prover.
 description:            An implementation of a decision procedure for classical 
                         logic and justification logic.
