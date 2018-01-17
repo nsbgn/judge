@@ -118,31 +118,6 @@ simplify formula = case formula of
 
 
 
--- | Turn a formula into its direct negation by adding or stripping away a
--- negation symbol.
-negation :: Formula ext -> Formula ext
-negation (Implication x (Constant False)) = x
-negation (Negation x) = x
-negation (Constant True) = Constant False
-negation (Constant False) = Constant True
-negation x = Negation x
-
-
-
--- | Check if formulas are in direct (!) contradiction with eachother, that is,
--- if there is a formula φ in one of the sets such that there is a formula 
--- φ → ⊥ or a formula ¬φ in the other set.
---
--- Assume that ys is NOT self-contradicting.
-contradict :: (Traversable t1, Traversable t2, Eq ext) 
-           => t1 (Formula ext) 
-           -> t2 (Formula ext) 
-           -> Bool
-contradict xs ys = 
-    Constant False `elem` xs || any (`elem` ys) (fmap negation xs)
-
-
-
 -- SUBTERMS ------------------------------------------------------------------
 
 -- | The term datastructure disambiguates between terms of the logical language

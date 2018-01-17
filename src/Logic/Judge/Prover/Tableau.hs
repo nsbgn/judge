@@ -16,7 +16,7 @@ import "base" Debug.Trace (trace, traceShow, traceM, traceShowM)
 import "base" Data.Maybe (listToMaybe, mapMaybe, catMaybes, fromJust)
 import "base" Data.List (intersect, partition, lookup, nub, sortBy, (\\))
 import "base" Data.Function (on)
-import "base" Control.Applicative (Alternative, empty)
+import "base" Control.Applicative (Alternative, empty, (<|>))
 import "base" Control.Monad (foldM, guard, forM, join)
 import qualified "containers" Data.Tree as R
 import qualified "containers" Data.Map as M
@@ -49,7 +49,7 @@ data Result input output
 data Tableau ext
     = Node [BranchFormula ext] (Tableau ext)
     | Application String [Int] [Tableau ext]
-    | Closure
+    | Closure [Int]
 
 
 
@@ -189,28 +189,41 @@ data Match ext = Match
 -- TODO: Note that some marks may denote that its formula is false. This is 
 -- taken into account, but precisely *which* marks denote falsity is hardcoded 
 -- for the moment.
---
--- TODO: Also say WHICH formulas contradict.
-closes :: Eq ext 
-       => TableauSettings ext 
-       -> Branch ext 
-       -> Bool
-closes κ@(TableauSettings {assumptions}) 
-       π@(Branch {new, actives, inactives}) =
-   
-    any (F.contradict new') [ new'
-                            , fmap strip $ maybe [] L.asList actives
-                            , assumptions
-                            , fmap strip inactives ]
-    
-    where
-    new' = fmap strip new
+closes :: forall ext . Eq ext 
+       => Branch ext 
+       -> Maybe [Int]
+closes π@(Branch {new, actives, inactives}) =
 
-    strip :: BranchFormula ext -> F.Formula ext
-    strip (_ := (F.Marked m x)) = 
-        if any (== "F") m 
-            then F.negation x 
-            else x
+    first (map contradiction new) <|>
+    contradict new new <|>
+    contradict new inactives <|>
+    contradict new (maybe [] L.asList actives)
+  
+    where
+
+    first :: Foldable t => t (Maybe a) -> Maybe a
+    first = foldl (<|>) Nothing
+
+    contradict :: [BranchFormula ext] -> [BranchFormula ext] -> Maybe [Int]
+    contradict xs ys = first (xs >>= \x -> return $ first (map (contradicts x) ys))
+
+    hasF = any (=="F")
+
+    contradiction :: BranchFormula ext -> Maybe [Int]
+    contradiction (i := (F.Marked marks formula)) = case formula of
+        F.Constant True -> if hasF marks 
+            then Just [i] 
+            else Nothing
+        F.Constant False -> if not $ hasF marks 
+            then Just [i] 
+            else Nothing
+        _ -> Nothing
+
+    contradicts :: BranchFormula ext -> BranchFormula ext -> Maybe [Int]
+    contradicts (i := F.Marked m1 f1) (j := F.Marked m2 f2) = 
+        if ((hasF m1 && not (hasF m2)) || (hasF m2 && not (hasF m1))) && f1 == f2
+            then Just [i, j]
+            else Nothing
 
 
 
@@ -494,9 +507,9 @@ expand κ = greedy . expand'
     -- | Nondeterministically and recursively expand the given branch into its 
     -- subtableaux.
     expand' :: Branch ext -> [Tableau ext]
-    expand' π@(Branch {new}) = Node new <$> case closes κ π of
-        True -> return Closure
-        False -> do
+    expand' π@(Branch {new}) = Node new <$> case closes π of
+        Just xs -> return $ Closure xs
+        Nothing -> do
             -- Pick a possible set of branch expansions
             (Match {matched, rule}, πs) <- expand1 κ π
             -- Determine which rule led to the expansions
@@ -543,8 +556,10 @@ renumber start = flip ST.evalState (start, []) . renumber'
     renumber' :: Tableau ext -> ST.State (Int, [(Int,Int)]) (Tableau ext)
     renumber' tableau = do
         θ' <- case tableau of
-            Closure -> 
-                return tableau
+            Closure refs -> do
+                (_, assoc) <- ST.get
+                refs' <- forM refs $ return . fromJust . flip lookup assoc
+                return $ Closure refs'
             Node φs θ -> do
                 φs' <- forM φs $ \(i := φ) -> do
                     (j, assoc) <- ST.get

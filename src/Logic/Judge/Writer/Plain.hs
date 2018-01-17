@@ -138,15 +138,6 @@ foldEntry :: Printable a => String -> a -> [PP.Doc] -> [PP.Doc]
 foldEntry k v acc = (PP.text k <+> PP.align (pretty v)) : acc
 
 
-
-
-
-
-
-
-
-
-
 instance Printable f => Printable (F.Marked f) where
     pretty (F.Marked [] formula) = pretty formula
     pretty (F.Marked marks formula) = prettify marks <+> pretty formula 
@@ -239,7 +230,7 @@ binary p c q =
 
 instance Printable ext => Printable (T.Tableau ext) where
     pretty θ = case θ of
-        T.Closure -> pretty False
+        T.Closure refs -> pretty False <+> styleAnnotation (list refs)
         T.Node φs subθ -> PP.vsep (map pretty φs) <$> pretty subθ
         T.Application name refs θs -> branch
             (styleAnnotation $ pretty name <> list refs)

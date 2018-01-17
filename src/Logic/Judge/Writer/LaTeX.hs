@@ -70,8 +70,10 @@ instance (Printable ext) => LaTeX (T.Tableau ext) where
 
         where
         latex' θ = case θ of
-            T.Closure -> 
-                PP.string ", closed"
+            T.Closure refs -> 
+                PP.string ", closed={" <>
+                cmd "n" (PP.tupled $ map PP.int refs) <>
+                PP.string "}"
             T.Application name refs θs -> 
                 PP.string ", apply=$\\sf " <> 
                 PP.string (unicode2tex name) <+> 
@@ -104,13 +106,13 @@ latexHeader = PP.vsep $ map PP.string
     , "    for tree={"
     , "        parent anchor=south,"
     , "        child anchor=north,"
-    , "        s sep=0.3cm,"
+    , "        s sep=1cm,"
     , "        l sep=0.7cm,"
     , "        inner sep=0.1cm"
     , "    },"
     , "},"
     , "closed/.style={"
-    , "    label=below:$\\otimes$"
+    , "    label=below:{$\\otimes$ #1}"
     , "},"
     , "clamp/.style={"
     , "    no edge,"
