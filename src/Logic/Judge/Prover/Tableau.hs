@@ -229,10 +229,6 @@ data Match ext = Match
 
 -- | Determine if the most recent additions to the branch cause the branch to
 -- close by causing a contradiction.
---
--- TODO: Note that some marks may denote that its formula is false. This is 
--- taken into account, but precisely *which* marks denote falsity is hardcoded 
--- for the moment.
 closes :: forall ext . Eq ext 
        => Branch ext 
        -> Maybe [Int]
@@ -401,7 +397,7 @@ initial system goal = (initκ, initπ)
 -- 'Match'es, but does not further instantiate the matches.
 --
 -- For efficiency, the "biggest" consumptions should be the first to be 
--- matched. This is not enforced at the moment.
+-- matched.
 matchRule :: forall ext . (F.Extension ext)
           => Branch ext
           -> RuleInstantiated ext
@@ -498,6 +494,9 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
             
     where
 
+    mapM2 :: Monad m => (a -> m b) -> [[a]] -> m [[b]]
+    mapM2 = mapM . mapM
+
     -- | All instances of a greedily picked rule for expanding a branch using
     -- a consumer rule.
     consumers :: [(Match ext, [Branch ext])]
@@ -506,7 +505,7 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
         -- the rule, nondeterministically pick an instance of that rule.
         μ@(Match {matched, remainder, assignment, rule}) <- matchFirst κ π
         -- Instantiate and unwrap the productions of the match we picked
-        disjunction <- Fσ.substitute2 assignment (productions rule)
+        disjunction <- Fσ.substitute assignment `mapM2` productions rule
         -- Present the newly created branches
         return $ (,) μ
             [ π { actives = L.insertAll conjunction remainder
@@ -524,7 +523,7 @@ expand1 κ@(TableauSettings {rulesC, assumptions})
         let ρ = L.current ρF
         μ@(Match {matched, remainder, assignment, rule, rule'}) <- 
             matchRule π ρ >>= instantiateMatch κ π
-        disjunction <- Fσ.substitute2 assignment (productions rule)
+        disjunction <- Fσ.substitute assignment `mapM2` productions rule
         return $ (,) μ
             [ π { actives = L.insertAll conjunction remainder
                 , inactives = matched ++ inactives

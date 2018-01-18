@@ -125,8 +125,6 @@ instance Functor Marked where
 
 -- | Simplify formulae to only falsehood, implication and justification. This
 -- reduces the number of rules that need implementation.
---
--- TODO: This should not be hardcoded, but read from configuration
 simplify :: Formula ext -> Formula ext
 simplify formula = case formula of
     Variable v -> Variable v
@@ -227,9 +225,6 @@ instance Subterm Justification Justification where
 -- | The @HasVariables@ class is applicable to formulas and formula extensions
 -- that consist of substructures with variables and constants, and operators to
 -- combine them.
---
--- TODO: Just like 'Subterms', this should be a 'Set' so that we don't get
--- duplicates.
 class HasVariables term where
     -- | Return the variables occurring in a term. Note: May contain
     -- duplicates.

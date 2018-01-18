@@ -24,7 +24,8 @@ module Logic.Judge.PointedList
 import "pointedlist" Data.List.PointedList as L hiding (focus)
 import "base" Data.Foldable (toList)
 
--- | Turn a 'PointedList' into a non-pointed list.
+-- | Turn a 'PointedList' into a non-pointed list, assuming no particular
+-- ordering.
 asList :: L.PointedList a -> [a]
 asList (L.PointedList prefix x postfix) = x : prefix ++ postfix
 
@@ -43,9 +44,8 @@ insertAll xs (Just l) = return . foldr L.insertLeft l $ xs
 -- | Create a list of variations of the provided 'PointedList', one for each
 -- element to take focus. 
 --
--- TODO: This is a bit sloppy. It assumes no particular order. Note that using
--- 'toList' instead makes for a different complexity on the example
--- sentences due to ordering. What is the most advantageous ordering?
+-- This function is a bit sloppy. It assumes no particular order. Note that using
+-- 'toList' instead can cause longer (or shorter?) running times.
 focus :: L.PointedList a -> [L.PointedList a]
 focus = asList . L.positions
 

@@ -27,7 +27,6 @@ module Logic.Judge.Formula.Substitution
     ( Substitution
     , Substitutable(substitute, pattern, patternContinue)
     , merge
-    , substitute2
     ) where
 
 import "base" Control.Monad (void, when, sequence, ap)
@@ -98,14 +97,6 @@ class Substitutable ext term where
 
 
 instance (Eq ext, Substitutable ext a) => Substitutable ext (Marked a) where
-
-    -- Historical note: at a certain point, the idea was to never pattern with
-    -- marked formulas, but instead match the formula itself and just make sure
-    -- that all the marks of the scheme occur in the target (but not
-    -- necessarily vice versa). Any formulas spawned by formulas with a partial
-    -- mark match could then quietly inherit those unmentioned marks. The idea
-    -- was to reduce rule duplication. For clarity, and in the spirit of YAGNI,
-    -- this feature was discontinued.
     patternM (Marked m1 x1) (Marked m2 x2) = do
         when (not $ all (`elem` m2) m1 && all (`elem` m1) m2) shortcircuit
         patternM x1 x2
@@ -196,22 +187,8 @@ binds k v = maybe (shortcircuit) (void . put) . insert k v =<< get
 
 -- | Insert value @v@ at key @k@. If there is already a value at @k@, this will
 -- fail, unless the existing value at @k@ is identical to the new one.
---
--- TODO: This used to be something else. This is prettier, but I can't quite
--- assess if it's also efficient. Should look into that.
 insert :: (Ord k, Eq v, Monad m) => k -> v -> M.Map k v -> m (M.Map k v)
 insert k v m = sequence $ M.insertWith identical k (return v) (fmap return m)
-
-
--- | Substitute an assignment into a list of lists of terms.
-substitute2 :: (Substitutable ext term, Monad m) 
-            => Substitution ext
-            -> [[term]]
-            -> m [[term]]
-substitute2 σ targets = 
-    let mapM2 = mapM . mapM
-    in substitute σ `mapM2` targets
-
 
 
 -- | Combine two substitutions, but fail if they are conflicting. 
