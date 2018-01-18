@@ -1,4 +1,3 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Paths_judge
 Description : This file is a placeholder --- it will be automatically
@@ -10,7 +9,11 @@ Stability   : experimental
 {-# LANGUAGE PackageImports #-}
 module Paths_judge where
 
+import "base" Data.Version (Version, makeVersion)
 import "directory" System.Directory (makeAbsolute)
+
+version :: Version
+version = makeVersion [0]
 
 getDataDir :: IO String
 getDataDir = makeAbsolute "logic"

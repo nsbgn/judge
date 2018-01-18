@@ -16,6 +16,7 @@ import "text" Data.Text.IO (getContents)
 import "base" System.Info (os)
 import "base" System.IO (IOMode(WriteMode))
 import "base" Data.Monoid ((<>))
+import "base" Data.Version (showVersion)
 import "base" Control.Applicative ((*>),(<*),(<|>))
 import "base" Control.Monad (void)
 import "base" GHC.IO.Handle (Handle, hIsTerminalDevice)
@@ -26,7 +27,7 @@ import qualified "optparse-applicative" Options.Applicative as O
 import qualified "attoparsec" Data.Attoparsec.Text as P
 import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 
-import Paths_judge (getDataDir) -- automatically generated
+import Paths_judge (getDataDir, version) -- automatically generated
 import Logic.Judge.Formula.Parser (parse, Parseable)
 import qualified Logic.Judge.Writer as W
 
@@ -40,20 +41,27 @@ data Arguments = Arguments
     }
 
 
-
 arguments :: IO Arguments
 arguments = O.execParser prog 
 
     where
 
     prog = O.info
-        (  O.helper <*> options )
+        (  O.helper <*> versioning <*> options )
         (  O.fullDesc 
         <> O.progDescDoc (return description)
         <> O.header "judge - Decision procedure for formal logics" 
         <> O.footer "2017, Utrecht University"
         )
 
+    versioning = 
+        O.infoOption 
+            ("judge - version " ++ showVersion version)
+            (  O.short 'V'
+            <> O.long "version"
+            <> O.help "Show program version"
+            ) 
+    
     options = Arguments
         <$> O.switch 
             (  O.short 'v'
