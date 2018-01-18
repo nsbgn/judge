@@ -1,9 +1,12 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.PointedList
 Description : Re-export 'Data.List.PointedList' with convenience functions.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+Re-export 'Data.List.PointedList' with convenience functions.
 -}
 
 {-# LANGUAGE PackageImports #-}
@@ -26,11 +29,6 @@ asList :: L.PointedList a -> [a]
 asList (L.PointedList prefix x postfix) = x : prefix ++ postfix
 
 
--- | Turn a possibly empty 'PointedList' into a normal list, preserving order.
---toList :: Maybe (L.PointedList a) -> [a]
---toList = maybe [] (foldr (:) [])
-
-
 -- | Get the current focus of a 'PointedList'.
 current :: L.PointedList a -> a
 current = L._focus
@@ -43,23 +41,22 @@ insertAll xs (Just l) = return . foldr L.insertLeft l $ xs
 
 
 -- | Create a list of variations of the provided 'PointedList', one for each
--- element to take focus. TODO: Assumes no particular order. Note that using
--- Data.Foldable.toList makes for a different complexity on the example
--- sentences due to ordering. What is the most advantageous ordering? Again,
--- the most 'complex' ε-rules should probably be tried first, so that we don't
--- introduce formulas that are then captured only by other ε-rules. Does it
--- still work then, though?
+-- element to take focus. 
+--
+-- TODO: This is a bit sloppy. It assumes no particular order. Note that using
+-- 'toList' instead makes for a different complexity on the example
+-- sentences due to ordering. What is the most advantageous ordering?
 focus :: L.PointedList a -> [L.PointedList a]
 focus = asList . L.positions
 
 
 -- | Update the focused element of a 'PointedList' using a function that
--- returns @Just@ the new value, or @Nothing@ for deletion.
+-- returns 'Just' the new value, or 'Nothing' for deletion.
 modify :: L.PointedList a -> (a -> Maybe a) -> Maybe (L.PointedList a)
 modify xs f = maybe (L.delete xs) (Just . flip L.replace xs) . f $ current xs
 
 
 -- | Update the focused element of a 'PointedList' with the value of the
--- @Just@, or delete the element if that value is @Nothing@.
+-- 'Just', or delete the element if that value is 'Nothing'.
 update :: L.PointedList a -> Maybe a -> Maybe (L.PointedList a)
 update xs = modify xs . const

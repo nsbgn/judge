@@ -1,9 +1,12 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Formula.Parser
-Description : Attoparsec-based parser for various logical (sub)structures.
+Description : Parser for formulas.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+Attoparsec-based parser for various logical (sub)structures.
 -}
 
 {-# LANGUAGE FlexibleInstances #-}
@@ -11,7 +14,7 @@ Stability   : experimental
 module Logic.Judge.Formula.Parser
     (
     -- * Parser typeclass
-      Parseable
+      Parseable(..)
     , parse
     -- * Formula parsers
     , formula
@@ -25,6 +28,7 @@ module Logic.Judge.Formula.Parser
     , boolean
     , comments
     -- * Generic parser building
+    , Operator
     , expression
     , ambiguity
     ) where
@@ -45,6 +49,7 @@ import qualified Logic.Judge.Formula.Datastructure as F
 --------------------------------------------------------------------------------
 -- * Parser typeclass
 
+-- | A Parseable is something with an associated Attoparsec 'P.Parser'.
 class Parseable a where
 
     -- | A parser for type @a@.
@@ -122,9 +127,8 @@ data Associativity = L | R
 -- operators. Note: To avoid ambiguous left/right associative operators, don't 
 -- put multiple operators of different associative direction into one
 -- precedence bucket.
-expression :: [[ Operator a ]] -> -- ^ List of @Operator@s sorted into buckets
-                                  -- corresponding to order of precedence.
-              P.Parser a          -- ^ Parser for basic expressions.
+expression :: [[ Operator a ]] ->
+              P.Parser a         
            -> P.Parser a
 expression buckets base = spaced $ foldl buildUpon (spaced base) buckets' where
 

@@ -1,15 +1,22 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Writer.LaTeX
 Description : Instances for LaTeX output.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+This module provides instances for LaTeX output in 'PP.Doc'-format.
 -}
 
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
-module Logic.Judge.Writer.LaTeX where
+module Logic.Judge.Writer.LaTeX 
+    ( LaTeX
+    , latex
+    , latexHeader
+    , latexFooter
+    ) where
 
 import Prelude hiding ((<$>))
 import "texmath" Text.TeXMath.TeX (renderTeX)
@@ -23,7 +30,11 @@ import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Prover.Tableau as T
 
 
+
+-- | Instances of this class can be represented as LaTeX code.
 class LaTeX a where
+
+    -- | Produce a 'PP.Doc' representing LaTeX code.
     latex :: a -> PP.Doc
 
 
@@ -40,7 +51,6 @@ instance (LaTeX input, Printable ext) => LaTeX (T.Result input (T.Tableau ext)) 
             PP.string "\\begin{result}" <$> 
             result <$> 
             PP.string "\\end{result}"
-
 
 
 instance LaTeX a => LaTeX (Ref Int a) where
@@ -96,7 +106,8 @@ instance (Printable ext) => LaTeX (T.Tableau ext) where
 cmd :: String -> PP.Doc -> PP.Doc
 cmd s doc = PP.char '\\' <> PP.string s <> PP.lbrace <> doc <> PP.rbrace
 
--- | Header for LaTeX output. Eventually use templates instead of inlining. 
+
+-- | Header for LaTeX output.
 latexHeader :: PP.Doc
 latexHeader = PP.vsep $ map PP.string 
     [ "\\documentclass[multi=result,margin=1cm]{standalone}"
@@ -127,30 +138,18 @@ latexHeader = PP.vsep $ map PP.string
     , "\\begin{document}"
     ]
 
-{-
-  declare toks register=closure,
-  declare count register=level to prefix,
-  prefix=X-,
-  level to prefix=1,
-  delay={
-    for nodewalk/.process=Rw Rw
-    {level to prefix}{level=#1}
-    {prefix}{+content=#1}
-  }
--}
-
 
 -- | Footer for LaTeX output.
 latexFooter :: PP.Doc
 latexFooter = PP.text "\\end{document}"
 
 
--- | Convert Unicode strings (φ → ψ) to LaTeX (\psi \rightarrow \phi).
+-- | Convert Unicode strings (@φ → ψ@) to LaTeX (@\psi \rightarrow \phi@).
 unicode2tex :: String -> String
 unicode2tex str = stripHardSpaces $ getTeXMath str [] >>= flip renderTeX ""
 
     where
-    -- Some hacks to change TeXMath's output to what I need
+    -- Some hacks to fix TeXMath's output
     stripHardSpaces :: String -> String
     stripHardSpaces string = case string of
         ('\\':'n':'e':'g':xs) -> "\\neg " ++ xs

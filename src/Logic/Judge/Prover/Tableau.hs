@@ -1,15 +1,51 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Prover.Tableau
 Description : A tableau-based decision algorithm.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+A generic decision algorithm based on the method of analytic tableaux.
 -}
 
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PackageImports #-}
-module Logic.Judge.Prover.Tableau where
+module Logic.Judge.Prover.Tableau (
+    -- * Input structures
+      TableauSystem(..)
+    , Constraint(..)
+    , Compositor(..)
+    , Rule(..)
+    , RuleUninstantiated
+    -- ** Term specification
+    , PrimitiveDynamicTerms(..)
+    , PrimitiveStaticTerms(..)
+    , Terms(..)
+    , DynamicTerms
+    , StaticTerms
+    -- * Decision algorithm
+    , decide
+    , initial
+    -- ** Intermediate structures
+    , TableauSettings(..)
+    , Ref(..)
+    , Branch(..)
+    , BranchFormula
+    , RuleInstantiated
+    -- ** Output structures
+    , Result(..)
+    , Tableau(..)
+    -- ** Postprocessors
+    , shorten
+    , renumber
+    , rewrite
+    -- * Auxiliaries
+    , greedy
+    , intersection
+    , combinations
+    ) where
 
 import "base" Debug.Trace (trace, traceShow, traceM, traceShowM)
 
@@ -38,15 +74,15 @@ infixr 7 :=
 
 
 
--- | Like 'Either', but remembers the original input in the Right case too.
+-- | Like 'Either', but remembers the original input in the 'Right' case, too.
 data Result input output
     = Success input output
     | Failure input
 
 
  
--- | A proof in a tableau system is a rose tree, containing formulas and the
--- rule applications used to obtain them.
+-- | A proof in a tableau system is a rose tree, containing sets of formulas
+-- and the rule applications used to obtain them.
 data Tableau ext
     = Node [BranchFormula ext] (Tableau ext)
     | Application String [Int] [Tableau ext]
@@ -63,7 +99,8 @@ data TableauSystem ext = TableauSystem
 
 
 
--- | Tableau "globals" that will remain static after initialisation.
+-- | The global state of the tableau — settings that will remain static after 
+-- initialisation.
 data TableauSettings ext = TableauSettings
     { rulesC :: [RuleInstantiated ext]
     -- ^ The consumer rules are those rules that take a consumption from the
@@ -77,11 +114,11 @@ data TableauSettings ext = TableauSettings
 
 -- | A constraint is placed on a tableau rule to restrict the values to which
 -- its variables can be bound. This means that some applications of the rule
--- will be blocked; but also that any 'free' or 'generative' variables (that 
+-- will be blocked; but also that any "free" or "generative" variables (that 
 -- is, variables that occur in the rule's productions but not in its
 -- consumptions) can now be associated with a set of possible assignments, 
--- thereby making it possible to, essentially, generate a *choice* of multiple 
--- *instantiations* of a single rule.
+-- thereby making it possible to, essentially, generate a /choice/ of multiple 
+-- /instantiations/ of a single rule.
 data Constraint primitive ext
     = None
  -- | Demand that the pattern occurs in a particular set of terms.
@@ -92,22 +129,28 @@ data Constraint primitive ext
     | Merge [Constraint primitive ext]
 
 
--- | Indicates how to handle rule instantiations.
+-- | Indicates how to handle the situation where multiple rule instantiations
+-- are applicable to the same formula.
+--
+-- Due to their computational complexity, rules that do not take any 
+-- consumptions are handled greedily regardless of the value of the 
+-- compositor.
 data Compositor = Greedy | Nondeterministic
 
 
--- | Before instantiation, a generator is *described* by a constraint that can
--- only refer to static terms.
+-- | Before instantiation, a generator is /described/ by a constraint. This
+-- constraint can only refer to static terms.
 type RuleUninstantiated ext = Rule (Constraint PrimitiveStaticTerms ext) ext
 
 
 -- | After instantiation, a generator consists of all variable assignments that
--- it allows
+-- it allows.
 type RuleInstantiated ext = Rule (L.PointedList (Fσ.Substitution ext)) ext
 
 
--- | The base rule can represent both instantiated and uninstantiated tableau
--- rules.
+-- | A rule describes which formulas it consumes and which it produces. In its
+-- basic form, it can represent both instantiated and uninstantiated tableau
+-- rules (see 'RuleInstantiated' and 'RuleUninstantiated').
 data Rule generator ext = Rule 
     { name :: String
     -- ^ Identifier by which the rule shall be known.
@@ -120,7 +163,7 @@ data Rule generator ext = Rule
     -- formulas that will be created on the branch when the rule is applied. 
     -- Represents a disjunction of conjunctions.
     , generator :: generator
-    -- ^ A generator is a 'permissive constraint', which represents a choice 
+    -- ^ A generator is a "permissive constraint", which represents a choice 
     -- between possible variable assignments. This approach is necessary to be
     -- able to handle free variables in the productions: such variables
     -- do not have a pre-existing binding to check for compliance, so they 
@@ -135,21 +178,21 @@ data Rule generator ext = Rule
     -- algorithm. (Note that the last point can be dropped if we do not need to
     -- keep track of which bindings have already been used.)
     , constraint :: Constraint PrimitiveDynamicTerms ext
-    -- ^ Although the generator *does* also restrict bound variables (with 
+    -- ^ Although the generator /does/ also restrict bound variables (with 
     -- brute force: a variable's previous binding will block all conflicting 
     -- assignments), it is more computationally efficient to simply check 
     -- already known values for compliance, during runtime. 
     --
-    -- The limitation of prohibitive constraints is that they cannot deal with
-    -- 'free' variables. 
+    -- The limitation of restrictive constraints is that they cannot deal with
+    -- /free/ variables. 
     , compositor :: Compositor
     -- ^ The compositor indicates how to handle the case where multiple 
     -- instances are suggested by the generator.
     }
 
 
--- | A "working" branch keeps track of the leaf of a single branch and all 
--- that came before.
+-- | A @Branch@ keeps track of the leaf of a single branch of the tableau, and
+-- all that came before.
 data Branch ext = Branch
     { rulesA :: Maybe (L.PointedList (RuleInstantiated ext))
     -- ^ The ascetic rules are those rules that do not take a consumption from
@@ -167,7 +210,7 @@ data Branch ext = Branch
     }
 
 
--- | A 'Match' keeps track of information that is required when we are checking
+-- | A @Match@ keeps track of information that is required when we are checking
 -- the applicability of a rule to a branch.
 data Match ext = Match
     { matched :: [BranchFormula ext]
@@ -357,9 +400,8 @@ initial system goal = (initκ, initπ)
 -- remain on the branch unprocessed. This function provides all possible 
 -- 'Match'es, but does not further instantiate the matches.
 --
--- For efficiency, the 'biggest' formulas should be the first to be matched.
--- Note that the remainder is always focused on the element next to the last
--- removed element.
+-- For efficiency, the "biggest" consumptions should be the first to be 
+-- matched. This is not enforced at the moment.
 matchRule :: forall ext . (F.Extension ext)
           => Branch ext
           -> RuleInstantiated ext
@@ -421,7 +463,7 @@ instantiateMatch κ π
 -- at the level of generated instances.
 --
 -- Note that consumer rules are always picked in the order that they are
--- specified in the tableau settings κ.
+-- specified in the 'TableauSettings'.
 matchFirst :: forall ext . (F.Extension ext)
            => TableauSettings ext 
            -> Branch ext 
@@ -531,7 +573,7 @@ decide :: forall ext . (F.Extension ext)
        -> F.Formula ext
        -> Result (F.Formula ext) (Tableau ext)
 decide system goal =
-    let postprocess = renumber 1 . rewritten goal . shorten
+    let postprocess = renumber 1 . rewrite goal . shorten
         result = uncurry expand (initial system goal)
     in  maybe (Failure goal) (Success goal) $ postprocess <$> result 
 
@@ -541,15 +583,14 @@ decide system goal =
 -- * Post-processing
 
 
--- | A non-essential post-processing step on the tableau: eliminate rule
--- applications that do not produce any formulas that are involved in closing
--- any branch. 
+-- | Eliminate rule applications that do not produce any formulas that are 
+-- involved in closing any branch. 
 --
 -- Note that this will not eliminate all unnecessary applications (let alone
 -- find the shortest proof) — it will only remove rules that are not involved
--- in any closure. For example, for justification logic, if 'c:φ' and 'd:ψ' 
--- are in the CS but only 'd:ψ' has to be introduced via CSr, then this will
--- remove any redundant CSr application --- but if a formula is introduced via
+-- in any closure. For example, for justification logic, if @c:φ@ and @d:ψ@ 
+-- are in the CS but only @d:ψ@ has to be introduced via CSr, then this will
+-- remove any redundant CSr application — but if a formula is introduced via
 -- a restricted cut, it could do nothing because the cut-formula IS involved in
 -- the closure of a branch, even though it was pointless to do the cut in the
 -- first place. It would be nice to think of a stronger method.
@@ -587,10 +628,10 @@ shorten = flip ST.evalState S.empty . shorten'
 
 
 
--- | A non-essential post-processing step on the tableau: make the reference 
--- numbers on the formulas heterogeneous, even if they are on different 
--- branches. This is done in a single step at the end so that we don't have 
--- the mental (and computational) burden of carrying a State monad everywhere. 
+-- | Make the reference numbers on the formulas heterogeneous, even if they 
+-- are on different branches. This is done in a single step at the end so that 
+-- we do not have the mental (and computational) burden of carrying a 
+-- 'ST.State' monad everywhere. 
 renumber :: Int 
          -> Tableau ext 
          -> Tableau ext
@@ -598,7 +639,7 @@ renumber start = flip ST.evalState (start, []) . renumber'
 
     where
     -- The renumbering is done by keeping track of the number of times we
-    -- traversed 'up' a branch. We also remember the translation table for the
+    -- traversed up a branch. We also remember the translation table for the
     -- current branch. The latter could probably be done implicitly, but this
     -- is easier to grasp.
     renumber' :: Tableau ext -> ST.State (Int, [(Int,Int)]) (Tableau ext)
@@ -624,14 +665,14 @@ renumber start = flip ST.evalState (start, []) . renumber'
 
 
 
--- | A non-essential post-processing step on the tableau: if the root formula 
--- is not exactly equal to the input formula, there was supposedly a rewriting
--- step. Add this step to the tableau explicitly, to show what happened.
-rewritten :: F.Extension ext 
-          => F.Formula ext 
-          -> Tableau ext 
-          -> Tableau ext
-rewritten φ θ@(Node [i := F.Marked m ψ] _) = 
+-- | If the root formula is not exactly equal to the input formula, there was 
+-- supposedly a rewriting step. Add this step to the tableau explicitly, to 
+-- show what happened.
+rewrite :: F.Extension ext 
+        => F.Formula ext 
+        -> Tableau ext 
+        -> Tableau ext
+rewrite φ θ@(Node [i := F.Marked m ψ] _) = 
     if φ == ψ
         then θ
         else Node [subtract 1 i := F.Marked m φ] 
@@ -642,17 +683,18 @@ rewritten φ θ@(Node [i := F.Marked m ψ] _) =
 -------------------------------------------------------------------------------
 -- * Term specifications
 
--- | Represent sets of primitive source formulas to be used in constraints. 
+-- | Represent sets of primitive source formulas to be used in restrictive 
+-- constraints. 
 data PrimitiveDynamicTerms 
     = Static PrimitiveStaticTerms
- -- | 'Active' terms currently not processed on the branch. 
+ -- | Active terms, currently not processed on the branch. 
     | Processed
- -- | 'Inactive' terms currently processed on the branch.
+ -- | Inactive terms, currently processed on the branch.
     | Unprocessed
 
 
--- | Represent sets of primitive source formulas to be used in constraints or 
--- generators. Note that a generator can only use "static" sources.
+-- | Represent sets of primitive source formulas to be used in generators
+-- and restrictive constraints. 
 data PrimitiveStaticTerms 
  -- | Goal formula.
     = Root
@@ -661,7 +703,9 @@ data PrimitiveStaticTerms
 
 
 -- | Represent complex sets of source terms, to be turned into concrete terms
--- at a point when they are known.
+-- at a point where it is known what they should refer to. Static terms are 
+-- known at the start of the tableau procedure, whereas dynamic terms should
+-- be evaluated dynamically.
 data Terms primitive ext
     = Primitive primitive
  -- | Keep terms that occur in at least one constituent.
@@ -670,10 +714,13 @@ data Terms primitive ext
     | Intersection [Terms primitive ext]
  -- | Apply a transformation to terms.
     | Transform String ([F.Term ext] -> [F.Term ext]) (Terms primitive ext)
- -- | Filter (but don't bind) terms satisfying some pattern. (TODO)
- -- | Filter (F.Pattern ext) (TermsSpecification ext)
 
+
+-- | Shorthand for a specification of complex dynamic terms.
 type DynamicTerms = Terms PrimitiveDynamicTerms
+
+
+-- | Shorthand for a specification of complex static terms.
 type StaticTerms = Terms PrimitiveStaticTerms
 
 

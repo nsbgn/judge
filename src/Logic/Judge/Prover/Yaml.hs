@@ -1,16 +1,21 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Tableau.Yaml
-Description : YAML- and JSON-parsing class instances for tableau systems.
+Description : YAML- and JSON-parsing.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+This module provides instances for parsing tableau systems in YAML- and 
+JSON-representation, via 'Y.FromJSON'.
 -}
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PackageImports #-}
-module Logic.Judge.Prover.Yaml where
+module Logic.Judge.Prover.Yaml 
+    () where
 
 import "base" Data.List (delete)
 import "base" Data.Maybe (fromMaybe)

@@ -10,6 +10,10 @@ Policy](https://pvp.haskell.org/).
 Unreleased
 ----------
 
+### Removed
+
+    * Many previously exposed internal functions are now hidden.
+
 
 [0.1.1.0] - 2018-01-18
 ----------------------
@@ -21,8 +25,13 @@ Unreleased
 
 ### Removed
 
-    * The `negation` and `contradicts` functions have been removed. Closure is 
-      now exclusively triggered on properly signed formulas.
+    * The `negation` and `contradicts` functions have been removed. 
+    
+### Changed
+
+    * Closure is now exclusively triggered on properly signed formulas --- no 
+      longer on finding `[T] A` and `[T] A -> 0`, and no longer on finding 
+      `[T] A` for some assumption `A`.
 
 
 

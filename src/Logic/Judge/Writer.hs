@@ -1,13 +1,25 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Writer
-Description : I/O operations for writing to files or terminals.
+Description : Producing output.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+This module contains operations and class instances for writing to files or 
+terminals.
 -}
 
 {-# LANGUAGE PackageImports #-}
-module Logic.Judge.Writer where
+module Logic.Judge.Writer 
+    ( Format(LaTeX, Plain)
+    , writeHeader
+    , writeBody
+    , writeFooter
+    , write
+    , plainprint
+    , prettyprint
+    ) where
 
 import "base" GHC.IO.Handle (Handle, hIsTerminalDevice)
 import "base" GHC.IO.Handle.FD (stdout, stderr)
@@ -48,9 +60,7 @@ writeFooter file format = case format of
 
 
 -- | Write a document to some file handle. Automatically chooses `prettyprint`
--- or `export` based on whether we are writing to a file or to stdout. Note
--- that this means that redirecting stdout to a file will include ANSI
--- colorisation codes.
+-- or `plainprint` based on whether we are writing to a terminal or not.
 write :: Handle -> PP.Doc -> IO ()
 write file doc = do
     terminal <- hIsTerminalDevice file

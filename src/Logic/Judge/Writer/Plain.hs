@@ -1,15 +1,23 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Writer.Plain
-Description : Class instance and functions for printable structures.
+Description : Instances for prettyprinted output.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+This module provides instances for prettyprinted output in 'PP.Doc'-format.
 -}
 
-{-# LANGUAGE FlexibleInstances, UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PackageImports #-}
-module Logic.Judge.Writer.Plain where
+module Logic.Judge.Writer.Plain 
+    ( Printable
+    , pretty
+    , prettyEmbedded
+    , prettyRecursive
+    ) where
 
 import Prelude hiding ((<$>))
 import "base" Control.Monad (foldM)
@@ -31,16 +39,51 @@ styleOp = PP.bold
 styleVar = PP.green
 styleConst = id
 styleMark = PP.yellow
-
 styleTitle = PP.bold 
 styleSubtitle = PP.underline
 styleName = PP.red . PP.dquotes
 styleComment = PP.cyan
 styleAnnotation = PP.magenta
 
+
+-- | Produce a document representing a comma-seperated list.
+list :: Printable a => [a] -> PP.Doc
+list [] = PP.empty
+list xs = (PP.empty <+>) . PP.fillSep . PP.punctuate (PP.char ',') . map pretty $ xs
+
+
+-- | Produce a document for each word.
+phrase :: String -> PP.Doc
+phrase = PP.fillSep . map PP.text . words
+
+
+-- | Produce a string-seperated list.
+seperates :: String -> [PP.Doc] -> PP.Doc
+seperates str = PP.fillSep . PP.punctuate (PP.text $ ' ':str)
+
+
+-- | Fold function for String maps
+foldEntry :: Printable a => String -> a -> [PP.Doc] -> [PP.Doc]
+foldEntry k v acc = (PP.text k <+> PP.align (pretty v)) : acc
+
+
+-- | Helper for prettyprinting unary operators.
+unary :: Printable a => Char -> a -> PP.Doc
+unary c p = (styleOp . PP.char) c <> prettyRecursive p
+
+
+-- | Helper for prettyprinting binary operators.
+binary :: (Printable a, Printable b) => a -> Char -> b -> PP.Doc
+binary p c q = 
+    prettyRecursive p <+> 
+    (styleOp $ PP.char c) <+> 
+    prettyRecursive q
+
+
+-- | Instances of this class can be prettyprinted.
 class Printable a where
 
-    -- | Convert object into a text-based prettyprinted representation.
+    -- | Produce a 'PP.Doc' representing LaTeX code.
     pretty :: a -> PP.Doc
 
 
@@ -57,9 +100,6 @@ class Printable a where
     prettyRecursive :: a -> PP.Doc
     prettyRecursive = pretty
 
-
-instance {-# OVERLAPPABLE #-} Printable a => Show a where
-    show = show . pretty
 
 instance {-# OVERLAPS #-} Printable String where
     pretty = phrase
@@ -114,28 +154,6 @@ instance Printable a => Printable (R.Tree a) where
             (x:xs) -> nest x <$$> pretties xs
 
         nest x = PP.char '╷' <$$> PP.text "└── " <> PP.nest 4 (pretty x)
-
-
-
--- | Produce a document representing a comma-seperated list.
-list :: Printable a => [a] -> PP.Doc
-list [] = PP.empty
-list xs = (PP.empty <+>) . PP.fillSep . PP.punctuate (PP.char ',') . map pretty $ xs
-
-
--- | Produce a document for each word.
-phrase :: String -> PP.Doc
-phrase = PP.fillSep . map PP.text . words
-
-
--- | Produce a string-seperated list.
-seperates :: String -> [PP.Doc] -> PP.Doc
-seperates str = PP.fillSep . PP.punctuate (PP.text $ ' ':str)
-
-
--- | Auxiliary: Fold function for String maps
-foldEntry :: Printable a => String -> a -> [PP.Doc] -> [PP.Doc]
-foldEntry k v acc = (PP.text k <+> PP.align (pretty v)) : acc
 
 
 instance Printable f => Printable (F.Marked f) where
@@ -214,20 +232,6 @@ instance Printable F.Quantifier where
 
 
 
--- | Helper for prettyprinting binary operators.
-unary :: Printable a => Char -> a -> PP.Doc
-unary c p = (styleOp . PP.char) c <> prettyRecursive p
-
-
--- | Helper for prettyprinting binary operators.
-binary :: (Printable a, Printable b) => a -> Char -> b -> PP.Doc
-binary p c q = 
-    prettyRecursive p <+> 
-    (styleOp $ PP.char c) <+> 
-    prettyRecursive q
-
-
-
 instance Printable ext => Printable (T.Tableau ext) where
     pretty θ = case θ of
         T.Closure refs -> pretty False <+> styleAnnotation (list refs)
@@ -259,14 +263,12 @@ instance Printable b => Printable (Ref Int b) where
         pretty v <+> (styleAnnotation . PP.braces . pretty $ i)
 
 
-
 instance (Printable ext, Printable primitive) => Printable (T.Terms primitive ext) where
     pretty terms = case terms of
         T.Primitive s -> pretty s
         T.Union ts -> "or" `seperates` map prettyRecursive ts
         T.Intersection ts -> "and simultaneously" `seperates` map prettyRecursive ts
         T.Transform s _ t -> phrase "one of the" <+> phrase s <+> phrase "of" <+> pretty t
-
 
 
 instance Printable T.PrimitiveStaticTerms where
@@ -280,7 +282,6 @@ instance Printable T.PrimitiveDynamicTerms where
         T.Unprocessed -> phrase "an unprocessed node on the branch"
         T.Processed -> phrase "a processed node on the branch"
         T.Static s -> pretty s
-
 
 
 instance (Printable ext, Printable primitive) => Printable (T.Constraint primitive ext) where
@@ -340,5 +341,3 @@ instance (Printable ext) => Printable (T.TableauSystem ext) where
         where 
         subtitle = styleSubtitle . PP.text
         title = styleTitle . PP.text
-
-

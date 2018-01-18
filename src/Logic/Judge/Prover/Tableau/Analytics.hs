@@ -1,14 +1,20 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Prover.Tableau.Analytics
-Description : Performs analysis of instantiations of tableau systems.
+Description : Analysis of the complexity of the system.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+This module performs rudimentary analysis of the combinatorial complexity of 
+given tableau systems.
 -}
 
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE NamedFieldPuns #-}
-module Logic.Judge.Prover.Tableau.Analytics where
+module Logic.Judge.Prover.Tableau.Analytics 
+    ( analysis 
+    ) where
 
 import Prelude hiding ((<$>))
 import "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen ((<>), (<+>), (</>), (<$>), (<$$>), (<//>))
@@ -19,7 +25,8 @@ import qualified Logic.Judge.PointedList as L
 import qualified Logic.Judge.Formula as F
 import qualified Logic.Judge.Prover.Tableau as T
 
-
+-- | Produce a 'PP.Doc' indicating the number of instances of each rule of a
+-- tableau system. This function is a stub.
 analysis :: F.Extension ext
          => T.TableauSystem ext 
          -> F.Formula ext 

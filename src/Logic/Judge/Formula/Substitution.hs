@@ -1,16 +1,34 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Formula.Substitution
-Description : Obtaining variable assignments and applying substitutions.
+Description : Obtain variable assignments and apply substitutions.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+This module makes it possible to obtain variable assignments by comparing 
+'Formula's, and to apply substitutions based on them.
+
+The idea is similar to, but /not the same as/ unification. When we pattern @x@ 
+to @y@, the former is schematic and the latter is literal. Even though their
+variables can be structurally identical, they are really different, in that,
+for example, @Var "x"@ may well pattern with @Implication (Var "x") (Var "x")@,
+resulting in the substitution @[("x", Implication "x" "x")]@.
+
+Nevertheless, see @subsumes@ from @Control.Unification@. They are not related 
+by code, but the purpose is similar.
 -}
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PackageImports #-}
-module Logic.Judge.Formula.Substitution where
+module Logic.Judge.Formula.Substitution 
+    ( Substitution
+    , Substitutable(substitute, pattern, patternContinue)
+    , merge
+    , substitute2
+    ) where
 
 import "base" Control.Monad (void, when, sequence, ap)
 import "transformers" Control.Monad.Trans.Class (lift, MonadTrans)
@@ -45,20 +63,12 @@ class Substitutable ext term where
 
     -- | @a `pattern` b@ tries to find a substitution such that @a@ matches
     -- @b@. The @a@ formula is taken as a schematic formula, where variables
-    -- represent gaps to be filled in, and @b@ is a 'normal' formula, where
+    -- represent gaps to be filled in, and @b@ is a "normal" formula, in which
     -- variables represent literals.
     --
-    -- Note that this is *not* a unification function: even if the literals are
-    -- structurally equivalent to the schematic variables, they are really
-    -- different (in that, for example, @Var "x"@ may well pattern with 
-    -- @Implication (Var "x") (Var "x")x@, resulting in the substitution
-    -- @[("x", Implication "x" "x")]@).
-    --
     -- For simplicity, this function assumes that the formulas have been 
-    -- 'simplify'ed. TODO: This should be explicit later.
-    --
-    -- Also see @subsumes@ from @Control.Unification@. They are not related by
-    -- code, but I noticed that it serves a similar purpose.
+    -- 'simplify'ed. The intention is to make this explicit via a @newtype@ at
+    -- some point.
     pattern :: (Monad m)
             => term -- ^ The 'pattern' formula to be filled in.
             -> term -- ^ The formula to fill in the pattern.
@@ -80,12 +90,6 @@ class Substitutable ext term where
     -- step, so as to obtain a substitution that would make the former equal to 
     -- the latter. In order to be able to short-circuit as early as possible, 
     -- this is done in a combination of the Maybe and State monads.
-    --
-    -- TODO: If my intuition is anything to go by, the Maybe monad should be on
-    -- the top of the stack, with State on the bottom, for short-circuiting to
-    -- be really short-circuiting. However, that might be entirely untrue. This
-    -- works, but I'm keeping this note as a reminder to look into it if I
-    -- encounter inefficiencies.
     patternM :: ()
              => term 
              -> term 
@@ -121,7 +125,6 @@ instance (Eq ext, Substitutable ext ext) => Substitutable ext (Term ext) where
     substitute subst (MarkedFormula f) = MarkedFormula <$> substitute subst f
 
 
--- TODO: Other connectives
 instance (Eq ext, Substitutable ext ext) => Substitutable ext (Formula ext) where
 
     patternM (Variable var) term = 

@@ -35,7 +35,8 @@ to the standard output. By default, the format is plain text; add `-f LaTeX`
 to obtain LaTeX code instead. 
 
 For example, the following will construct proofs for [theorems](formulas.txt) 
-of the logic [J](logic/J.yml) and produce a PDF file from them:
+of the logic [Jcs](logic/J.yml) (with `c:(A→B→C) ∊ CS`), and produces a PDF 
+file to visualise them:
 
     judge logic/J.yml \
         -a "c:(A->B->A)" \

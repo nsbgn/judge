@@ -1,9 +1,12 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Formula
-Description : Re-export of judge's formula datastructure and class instances.
+Description : Re-export of datastructure and class instances.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+Re-export of the 'Formula' datastructure, including class instances.
 -}
 
 module Logic.Judge.Formula

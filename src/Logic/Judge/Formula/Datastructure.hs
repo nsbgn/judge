@@ -1,29 +1,52 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : Logic.Judge.Formula.Datastructure
-Description : Plain datastructures and operations on logical formulas.
+Description : Basic datastructures and instances.
+Copyright   : (c) 2017 ns@slak.ws
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
+
+Plain datastructures, class instances and operations on logical formulas.
 -}
 
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PackageImports #-}
-module Logic.Judge.Formula.Datastructure where
+module Logic.Judge.Formula.Datastructure (
+    -- * Datastructures
+    -- ** Formulas
+      Formula(..)
+    , Marked(..)
+    , Term(..)
+    , Ambiguous(..)
+    -- ** Extensions
+    , Proposition
+    , Predicate
+    , FormulaML
+    , FormulaJL
+    , Classical
+    , Quantifier(..)
+    , Modality(..)
+    , Justification(..)
+    -- * Operations
+    , simplify
+    , asTerm
+    , isFormula
+    , isExtension
+    , isMarkedFormula
+    -- * Classes
+    , Subterm(..)
+    , HasVariables(..)
+    ) where
 
 import "base" Data.List (nub)
 
 -- | For our purposes, a @Formula@ is a structure that is built upon a formula
 -- of classical propositional logic. It has all the standard connectives, plus
--- an optional @Extension@ that may hold quantifiers, modalities, etcetera.
+-- an optional 'Extension' that may hold quantifiers, modalities, etcetera.
 --
--- Note that I experimented with parametrising over the variable type, for
--- immediate compatibility with the @Control.Unification@ module from
--- @unification-fd@, but it threatened to make the code unnecessarily
--- complicated.
---
--- Note also that it is generally expected that formulas will be 'simplify'ed
+-- Note that it is generally expected that formulas will be 'simplify'ed
 -- before being processed.
 data Formula ext
     = Variable      String                      -- a, b, c...
@@ -38,12 +61,21 @@ data Formula ext
     deriving (Eq, Ord)
 
 
-
--- | Classical propositional logic has no extension.
-type Classical = ()
+-- | Formulas of propositional logic.
 type Proposition = Formula Classical
 
+-- | Formulas of predicate logic.
+type Predicate = Formula Quantifier 
 
+-- | Formulas of modal logic.
+type FormulaML = Formula Modality 
+
+-- | Formulas of justification logic.
+type FormulaJL = Formula Justification 
+
+
+-- | The formula extension for classical propositional logic is empty.
+type Classical = ()
 
 -- | Predicate logic is extended with quantifiers (and relation symbols,
 -- unimplemented).
@@ -52,17 +84,12 @@ data Quantifier
     | Existential String -- ∃x (Unicode: Mathematical Operators)
     deriving (Eq)
 
-type Predicate = Formula Quantifier
-
 
 -- | Standard modal logics have two (dual) unary modal operators.
 data Modality
     = Necessary -- □, K, ... (Unicode: Geometric Shapes)
     | Possible -- ◇, B, ... (Unicode: Geometric Shapes)
     deriving (Eq, Ord)
-
-type FormulaML = Formula Modality
-
 
 
 -- | Justification logics are extended with justification terms.
@@ -74,16 +101,13 @@ data Justification
     | Sum Justification Justification -- +
     deriving (Eq, Ord)
 
-type FormulaJL = Formula Justification
-
 
 -- MARKS ---------------------------------------------------------------------
 
 -- | A marked formula is simply a formula with zero or more string annotations.
--- This makes for easy generalisation: marks can carry information that is
--- common to tableau methods (namely, the polarity of the formula in the
--- current node), as well as information that is demanded specifically by
--- justification logic tableaus.
+-- This makes for easy generalisation: marks can carry the polarity of a
+-- formula, as well as state information specific to a particular tableau
+-- system.
 data Marked formula = Marked 
     { marks :: [String]
     , unmarked :: formula
@@ -92,8 +116,8 @@ data Marked formula = Marked
 instance Functor Marked where
     fmap f (Marked marks x) = Marked marks (f x)
 
-mark :: [String] -> Marked a -> Marked a
-mark new (Marked old x) = Marked (new ++ old) x
+--mark :: [String] -> Marked a -> Marked a
+--mark new (Marked old x) = Marked (new ++ old) x
 
 
 
@@ -164,7 +188,7 @@ newtype Ambiguous term = Ambiguous [term]
 
 
 
--- | The 'Subterm' class represents a relation between terms based on an
+-- | The @Subterm@ class represents a relation between terms based on an
 -- extension @ext@ (that is, formulas or extensions of formulas) and subterms 
 -- that may occur within those @ext@-terms.
 class (Subterm ext) term where
@@ -200,9 +224,12 @@ instance Subterm Justification Justification where
         t@(Sum s u)           -> Extension t:subterms s ++ subterms u
 
 
-
--- TODO: Along with 'subterms', this should be a 'set' so that we don't get
--- duplicates
+-- | The @HasVariables@ class is applicable to formulas and formula extensions
+-- that consist of substructures with variables and constants, and operators to
+-- combine them.
+--
+-- TODO: Just like 'Subterms', this should be a 'Set' so that we don't get
+-- duplicates.
 class HasVariables term where
     -- | Return the variables occurring in a term. Note: May contain
     -- duplicates.
@@ -238,6 +265,7 @@ instance HasVariables ext => HasVariables (Term ext) where
     size (Formula f) = size f
     size (Extension e) = size e
     size (MarkedFormula f) = size f
+
 
 instance HasVariables ext => HasVariables (Ambiguous (Term ext)) where
     variables (Ambiguous terms) = terms >>= variables
