@@ -10,9 +10,18 @@ Policy](https://pvp.haskell.org/).
 Unreleased
 ----------
 
+[0.1.2.0] - 2018-01-19
+----------------------
+
+### Changed
+
+    * Logic files in the designated data directories can now be specified 
+      without extension, but must not occur in a subdirectory.
+
 ### Removed
 
     * Many previously exposed internal functions are now hidden.
+
 
 
 [0.1.1.0] - 2018-01-18

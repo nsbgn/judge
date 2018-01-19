@@ -1,8 +1,9 @@
--- Copyright © 2017 ns@slak.ws; see LICENSE file.
 {-|
 Module      : CLI
 Description : Options to judge's command-line interface.
+Copyright   : (c) 2017, 2018 N Steenbergen
 License     : GPL-3
+Maintainer  : ns@slak.ws
 Stability   : experimental
 -}
 

@@ -1,7 +1,7 @@
 {-|
 Module      : Logic.Judge.PointedList
 Description : Re-export 'Data.List.PointedList' with convenience functions.
-Copyright   : (c) 2017 ns@slak.ws
+Copyright   : (c) 2017, 2018 N Steenbergen
 License     : GPL-3
 Maintainer  : ns@slak.ws
 Stability   : experimental

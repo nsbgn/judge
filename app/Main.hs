@@ -1,3 +1,12 @@
+{-|
+Module      : Main
+Description : Main module
+Copyright   : (c) 2017, 2018 N Steenbergen
+License     : GPL-3
+Maintainer  : ns@slak.ws
+Stability   : experimental
+-}
+
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE OverloadedStrings #-}
 

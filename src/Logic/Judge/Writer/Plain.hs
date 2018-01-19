@@ -1,7 +1,7 @@
 {-|
 Module      : Logic.Judge.Writer.Plain
 Description : Instances for prettyprinted output.
-Copyright   : (c) 2017 ns@slak.ws
+Copyright   : (c) 2017, 2018 N Steenbergen
 License     : GPL-3
 Maintainer  : ns@slak.ws
 Stability   : experimental

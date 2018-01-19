@@ -14,9 +14,8 @@ After cloning the repository, the recommended installation method is through
 
     stack install judge
 
-Alternatively, `judge` may be installed through 
-[Cabal](https://www.haskell.org/cabal/users-guide/), or run in the interpreter 
-(see [example.sh](example.sh)).
+Alternatively, `judge` can be installed through 
+[Cabal](https://www.haskell.org/cabal/users-guide/).
 
 
 
@@ -27,7 +26,7 @@ Usage
 or [JSON](http://json.org/) format. This file will specify the type of proof 
 system and the logical family (although at the moment, only the respective 
 values `tableau` and `justification` are recognised). It also provides the 
-rules of inference. See the [logic/](logic) directory for examples.
+rules of inference. See the [logic](logic) directory for examples.
 
 If no target formula(s) are provided via `-g`, formulas are read off the 
 standard input. If no output file is provided via `-o`, the result is written 

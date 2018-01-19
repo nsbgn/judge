@@ -1,7 +1,7 @@
 {-|
 Module      : Logic.Judge.Prover.Tableau
 Description : A tableau-based decision algorithm.
-Copyright   : (c) 2017 ns@slak.ws
+Copyright   : (c) 2017, 2018 N Steenbergen
 License     : GPL-3
 Maintainer  : ns@slak.ws
 Stability   : experimental
