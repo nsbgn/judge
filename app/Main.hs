@@ -8,6 +8,7 @@ import "base" Data.Maybe (fromJust)
 import "text" Data.Text (Text, pack, unpack)
 import qualified "yaml" Data.Yaml as Y
 import qualified "unordered-containers" Data.HashMap.Strict as M2
+import qualified "ansi-wl-pprint" Text.PrettyPrint.ANSI.Leijen as PP
 
 import qualified CLI
 
@@ -21,7 +22,13 @@ import qualified Logic.Judge.Writer as W
 main :: IO ()
 main = do
     arg <- CLI.arguments
-    yaml <- CLI.infile arg >>= deserialiseGeneric
+    filename <- CLI.infile arg
+    
+    W.prettyprint stderr $ 
+        PP.bold (PP.string "Selected logical system:") PP.<+> 
+        PP.string filename
+
+    yaml <- deserialiseGeneric filename
 
     case yaml .: "logic" of
         "justification" -> case yaml .: "system" of
@@ -83,7 +90,7 @@ _ .: _ = "undefined"
 deserialiseGeneric :: String -> IO Y.Value
 deserialiseGeneric path = either report return =<< Y.decodeFileEither path
     where report = fail . Y.prettyPrintParseException
-
+-- make into handle
 
 -- | Evaluate generic YAML into a typed value.
 deserialise :: Y.FromJSON a => Y.Value -> IO a

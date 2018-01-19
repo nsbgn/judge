@@ -10,18 +10,21 @@ Stability   : experimental
 module CLI where
 
 import Prelude hiding (getContents)
-import "text" Data.Text (Text, pack, unpack)
-import "text" Data.Text.IO (getContents)
 
-import "base" System.Info (os)
-import "base" System.IO (IOMode(WriteMode))
+import "base" Data.Char (toLower)
+import "base" Data.List (intercalate)
 import "base" Data.Monoid ((<>))
 import "base" Data.Version (showVersion)
 import "base" Control.Applicative ((*>),(<*),(<|>))
-import "base" Control.Monad (void)
+import "base" Control.Monad (void, forM)
+import "base" System.Info (os)
+import "base" System.IO (FilePath, IOMode(WriteMode))
+import "base" System.IO.Error (catchIOError)
 import "base" GHC.IO.Handle (Handle, hIsTerminalDevice)
 import "base" GHC.IO.Handle.FD (stdout, stderr, stdin, openFile)
-import "filepath" System.FilePath ((</>))
+import "text" Data.Text (Text, pack, unpack)
+import "text" Data.Text.IO (getContents)
+import qualified "filepath" System.FilePath as FP
 import qualified "directory" System.Directory as D
 import qualified "optparse-applicative" Options.Applicative as O
 import qualified "attoparsec" Data.Attoparsec.Text as P
@@ -42,27 +45,36 @@ data Arguments = Arguments
 
 
 arguments :: IO Arguments
-arguments = O.execParser prog 
+arguments = do
+    logics <- map FP.takeBaseName <$> findLogics
+    O.execParser (prog logics) 
 
     where
 
-    prog = O.info
-        (  O.helper <*> versioning <*> options )
+    prog logics = O.info
+        (  O.helper <*> infoOptions logics <*> runOptions )
         (  O.fullDesc 
         <> O.progDescDoc (return description)
         <> O.header "judge - Decision procedure for formal logics" 
-        <> O.footer "2017, Utrecht University"
+        <> O.footer "2017-2018, Utrecht University"
         )
 
-    versioning = 
+    infoOptions logics = 
         O.infoOption 
             ("judge - version " ++ showVersion version)
             (  O.short 'V'
             <> O.long "version"
-            <> O.help "Show program version"
+            <> O.help "Show version of the software and exit"
+            ) 
+        <*> O.infoOption 
+            ("Available logical systems: " ++ intercalate ", " logics)
+            (  O.short 'l'
+            <> O.long "list-logics"
+            <> O.help "List logical systems available in the data \n\
+                      \directories and exit"
             ) 
     
-    options = Arguments
+    runOptions = Arguments
         <$> O.switch 
             (  O.short 'v'
             <> O.long "verbose"
@@ -115,15 +127,55 @@ arguments = O.execParser prog
           \README.md for more information."
 
 
--- | Find input file from standard locations (current directory, 
--- ~/.local/share, the data directory that cabal installed files to).
+-- | Find all paths to logics in the resource directories.
+findLogics :: IO [FilePath]
+findLogics = do
+    dat <- (FP.</> "logic") <$> getDataDir 
+    xdg <- D.getXdgDirectory D.XdgData "judge"
+    findFiles ["json", "yml", "yaml"] [xdg, dat]
+
+
+-- | Find all files with the given extensions in the given directories. If a
+-- directory does not exist or has permission issues, it is simply ignored.
+findFiles :: [String] -> [FilePath] -> IO [FilePath]
+findFiles extensions dirs = concat <$> forM dirs findFiles
+
+    where
+    -- | Find all relevant files in the given directory.
+    findFiles :: FilePath -> IO [FilePath]
+    findFiles dir = do 
+        { files <- filter correctExtension <$> D.listDirectory dir
+        ; return $ map (dir FP.</>) files
+        } `catchIOError` (\e -> return [])
+
+
+    -- | Check if the filepath has any of the accepted extensions.
+    correctExtension :: FilePath -> Bool
+    correctExtension path = flip any extensions $ 
+        (/= Nothing) . 
+        flip FP.stripExtension (map toLower path)
+    
+
+
+-- | Return input file name, or, if it doesn't exist, check if it matches any
+-- name in the resource directories.
 infile :: Arguments -> IO String
 infile args = do
-    cwd <- D.getCurrentDirectory
-    xdg <- D.getXdgDirectory D.XdgData "judge"
-    dat <- getDataDir
-    file <- D.findFile [cwd, xdg, dat </> "logic"] (_infile args)
-    maybe (return $ _infile args) return file
+    let name = _infile args
+    exists <- D.doesFileExist name
+    if exists
+    then return name
+    else do
+        logics <- filter (match name) <$> findLogics
+        case logics of
+            (filename:_) -> return filename
+            _ -> return name
+
+    where
+
+    match :: String -> FilePath -> Bool
+    match name path = name `elem` [FP.takeBaseName path, FP.takeFileName path]
+
 
 
 -- | Obtain and open file handle for output file.
@@ -150,7 +202,7 @@ goals arg = case _goals arg of
     where
     notification :: PP.Doc
     notification = 
-        PP.text "Reading from standard input" PP.<+>
+        PP.text "Reading formulas from standard input" PP.<+>
         PP.lparen PP.<>
         eof PP.<+>
         PP.text "to finish" PP.<>
