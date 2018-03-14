@@ -46,12 +46,6 @@ main = do
                     <$> (deserialise yaml :: IO (T.TableauSystem F.Justification))
                     <*> (CLI.assumptions arg :: IO [F.FormulaJL])
 
-                -- Tableau system is not prettyprinted well, so won't be shown
-                -- even in verbose mode for now
-                --if CLI.verbose arg
-                --    then write stderr $ pretty sys
-                --    else return ()
-
                 targets <- CLI.goals arg :: IO [F.FormulaJL]
                 file <- CLI.outfile arg
                 let format = CLI.format arg 

@@ -360,7 +360,7 @@ initial system goal = (initκ, initπ)
     initκ = TableauSettings
         { rulesC = rulesC
         , root = value $ L.current root
-        , assumptions = assumptions' system
+        , assumptions = map F.simplify $ assumptions' system
         }
 
     -- | Initial branch

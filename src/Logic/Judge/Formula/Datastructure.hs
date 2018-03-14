@@ -116,9 +116,6 @@ data Marked formula = Marked
 instance Functor Marked where
     fmap f (Marked marks x) = Marked marks (f x)
 
---mark :: [String] -> Marked a -> Marked a
---mark new (Marked old x) = Marked (new ++ old) x
-
 
 
 -- BASIC MANIPULATIONS -------------------------------------------------------
