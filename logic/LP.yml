@@ -2,7 +2,8 @@ logic: justification
 system: tableau
 name: Logic of proofs
 description: |
-    This is the system for LP described in my thesis.
+    This is the system for LP (and LPcs, if the constant specification is 
+    added) described in my Master's thesis.
 rules:
     - name: "F→"
       consume: ["[F] A → B"]
@@ -21,7 +22,7 @@ rules:
       produce:
           - ["[F] T:A"]
     - name: "T→"
-      consume: ["[T] A -> B"]
+      consume: ["[T] A → B"]
       produce:
           - ["[F] A"]
           - ["[T] B"]

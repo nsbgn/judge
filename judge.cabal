@@ -1,8 +1,8 @@
 name:                   judge
-version:                0.1.2.0
-synopsis:               Tableau-based theorem prover.
+version:                0.1.3.0
+synopsis:               Tableau-based theorem prover for justification logic.
 description:            An implementation of a decision procedure for classical 
-                        logic and justification logic.
+                        propositional logic and justification logic.
 homepage:               https://github.com/slakkenhuis/judge#readme
 license:                GPL-3
 license-file:           LICENSE
@@ -13,9 +13,10 @@ build-type:             Simple
 extra-source-files:     README.md
                       , CHANGELOG.md
                       , formulas.txt
-data-files:             logic/J.yml
+data-files:             logic/J0.yml
                       , logic/LP.yml
-                      , logic/J-ghari.yml
+                      , logic/J0-PB.yml
+                      , logic/example.yml
 cabal-version:          >=1.10
 
 library

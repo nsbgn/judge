@@ -2,9 +2,14 @@ logic: justification
 system: tableau
 name: J₀
 description: |
-    This system stays mostly faithful to the one described in Ghari 2016. The 
-    CSr rule was not present in the original; it emulates closure upon
-    encountering [F] φ on the branch for some φ ∊ CS.
+    This is a system for the justification logic J0 (and Jcs, when formulas 
+    from the constant specification are added.
+    
+    It is decidable through the addition of the principle of bivalence, as 
+    suggested by Finger (2010) and Ghari (2016). This particular system is 
+    based on the one described by Ghari, although the rule CSr was not
+    present in the original; it emulates closure of the branch upon 
+    encountering [F] φ for some φ ∊ CS.
 rules:
     - name: "Te"
       consume: ["[T] T:A"]
@@ -42,7 +47,7 @@ rules:
                 with: [subterms, formulas]
                 in:
                     union: [root, assumptions]
-              - match: "S * T"
+              - match: "S · T"
                 with: subterms
                 in: root
     - name: "CSr"

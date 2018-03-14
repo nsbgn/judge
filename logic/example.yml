@@ -1,0 +1,38 @@
+logic: "justification"
+system: "tableau"
+rules:
+    - name: "F→"
+      consume: ["[F] φ → ψ"]
+      produce: 
+          - - "[T] φ"
+            - "[F] ψ"
+    - name: "T→"
+      consume: ["[T] φ → ψ"]
+      produce:
+          - - "[F] φ"
+          - - "[T] ψ"
+    - name: "T·"
+      consume: ["[T] S:(φ → ψ)", "[T] T:φ"]
+      produce:
+          - - "[T] S·T:ψ"
+      restrict:
+          and:
+              - match: "φ → ψ"
+                with: ["subterms", "formulas"]
+                in:
+                    union: ["root", "assumptions"]
+              - match: "S · T"
+                with: "subterms"
+                in: "root"
+    - name: "CSr"
+      consume: []
+      produce:
+          - - "[T] φ"
+      generate:
+          match: "φ"
+          with: "all"
+          in: "assumptions"
+      compose: "greedy"
+assumptions:
+    - "c:(A→(B→A))"
+

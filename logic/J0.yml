@@ -1,0 +1,38 @@
+logic: justification
+system: tableau
+name: J₀
+description: |
+    This is the system for J₀ (and Jcs, if the constant specification is 
+    added) described in my Master's thesis.
+rules:
+    - name: "F→"
+      consume: ["[F] φ → ψ"]
+      produce: 
+          - ["[T] φ", "[F] ψ"]
+    - name: "F+"
+      consume: ["[F] T+S:φ"]
+      produce: 
+          - ["[F] T:φ", "[F] S:φ"]
+    - name: "T→"
+      consume: ["[T] φ → ψ"]
+      produce:
+          - ["[F] φ"]
+          - ["[T] ψ"]
+    - name: "F·"
+      consume: ["[F] (S · T) : ψ"]
+      produce:
+          - ["[F] S:(φ → ψ)"]
+          - ["[F] T:φ"]
+      generate:
+          match: "φ → ψ"
+          with: [subterms, formulas]
+          in:
+              union: [root, assumptions]
+    - name: "CSr"
+      consume: []
+      produce:
+          - ["[T] φ"]
+      generate:
+          match: "φ"
+          with: all
+          in: assumptions
