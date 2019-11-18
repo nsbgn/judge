@@ -2,7 +2,9 @@ judge
 ==============================================================================
 
 `judge` is a modular implementation of a decision procedure for classical and 
-justification logics, through a tableau-based theorem prover. 
+justification logics, through a tableau-based theorem prover. It is based on 
+my Master's thesis, which is freely available at the [Utrecht University 
+Repository](https://dspace.library.uu.nl/handle/1874/364838).
 
 
 
